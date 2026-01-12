@@ -43,6 +43,34 @@ const Home = () => {
     };
   }, []);
 
+  // Iniciar cámara cuando se abre el scanner
+  useEffect(() => {
+    if (showQRScanner && isMobile) {
+      const initCamera = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' },
+            audio: false
+          });
+
+          streamRef.current = stream;
+          
+          setTimeout(() => {
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+              setIsCameraActive(true);
+            }
+          }, 200);
+          
+        } catch (error) {
+          setCameraError('Error: ' + (error.message || 'No se pudo acceder'));
+        }
+      };
+
+      initCamera();
+    }
+  }, [showQRScanner, isMobile]);
+
   const handleSearch = (e) => {
     e.preventDefault();
   };
@@ -266,59 +294,31 @@ const Home = () => {
               
               <div className="relative">
                 {/* Vista de la cámara */}
-                <div className="border-2 border-blue-500 rounded-lg overflow-hidden mb-4">
-                  <div className="bg-gray-900/85 relative">
-                    {isCameraActive ? (
-                      <>
-                        {/* Video de la cámara */}
-                        <video
-                          ref={videoRef}
-                          autoPlay
-                          playsInline
-                          muted
-                          className="w-full h-64 object-cover"
-                        />
-                        
-                        {/* Marco de escaneo superpuesto */}
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="relative w-48 h-48">
-                            {/* Marco del scanner con esquinas */}
-                            <div className="absolute inset-0 border-2 border-green-500 rounded-lg opacity-80"></div>
-                            
-                            {/* Esquinas decorativas */}
-                            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-green-500 rounded-tl-lg"></div>
-                            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-green-500 rounded-tr-lg"></div>
-                            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-green-500 rounded-bl-lg"></div>
-                            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-green-500 rounded-br-lg"></div>
-                            
-                            {/* Línea de escaneo animada */}
-                            <div className="absolute top-0 left-0 right-0 h-1 bg-green-500 animate-scan rounded-full"></div>
-                          </div>
-                        </div>
-                        
-                        {/* Instrucciones */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-2 text-center text-sm">
-                          Enfoca el código QR dentro del marco
-                        </div>
-                      </>
-                    ) : (
-                      <div className="h-64 flex flex-col items-center justify-center text-white">
-                        {cameraError ? (
-                          <>
-                            <div className="text-4xl mb-3">⚠️</div>
-                            <p className="font-medium mb-2">{cameraError}</p>
-                            <p className="text-sm text-gray-300">Usa la entrada manual de código</p>
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-4xl mb-3">📱</div>
-                            <p className="font-medium mb-2">Iniciando cámara...</p>
-                            <p className="text-sm text-gray-300">Por favor, permite el acceso a la cámara</p>
-                          </>
-                        )}
+                <div className="border-2 border-blue-500 rounded-lg overflow-hidden mb-4 bg-black">
+                  {cameraError ? (
+                    <div className="h-64 flex flex-col items-center justify-center text-white">
+                      <div className="text-4xl mb-3">⚠️</div>
+                      <p className="font-medium mb-2">{cameraError}</p>
+                    </div>
+                  ) : isCameraActive ? (
+                    <div className="relative">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-64 object-cover"
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white p-2 text-center text-sm">
+                        📷 Cámara activa
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="h-64 flex flex-col items-center justify-center text-white">
+                      <div className="text-4xl mb-3">📱</div>
+                      <p className="font-medium mb-2">Iniciando cámara...</p>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Botón para simular detección (solo demo) */}
@@ -592,7 +592,7 @@ const Home = () => {
                 <button
                   onClick={closeModal}
                   className="flex-1 py-3 px-6 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
-                >3
+                >
                   Seguir Explorando
                 </button>
               </div>
@@ -600,21 +600,6 @@ const Home = () => {
           </div>
         </div>
       )}
-
-      {/* Estilos para animación de escaneo */}
-      <style jsx>{`
-        @keyframes scan {
-          0% {
-            transform: translateY(0);
-          }
-          100% {
-            transform: translateY(192px);
-          }
-        }
-        .animate-scan {
-          animation: scan 2s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };
