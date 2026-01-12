@@ -8,6 +8,7 @@ export const products = [
     discount: 0,
     rating: 4.5,
     description: "Zapatos casuales elegantes para uso diario, cómodos y duraderos.",
+    image: "https://www.botaexotica.com/cdn/shop/products/C171_Black_Zapatos_para_hombre_Mens_shoes_Bota_Exotica_Western_Boots_Bonafini_Shoes_d595d4b3-e9c7-4898-89b9-d47af70fbb69.jpg?v=1539276453", 
     colors: [
       { name: "Café", hex: "#8B4513", stock: 15 },
       { name: "Marino", hex: "#000080", stock: 12 },
@@ -40,6 +41,7 @@ export const products = [
     discount: 15,
     rating: 4.7,
     description: "Zapatos formales de vestir, perfectos para ocasiones especiales y trabajo.",
+    image: "/images/products/formales.jpg", 
     colors: [
       { name: "Negro", hex: "#000000", stock: 20 },
       { name: "Café Oscuro", hex: "#654321", stock: 15 },
@@ -70,6 +72,7 @@ export const products = [
     discount: 10,
     rating: 4.6,
     description: "Zapatos deportivos con tecnología de amortiguación para máximo confort.",
+    image: "https://vittorioforti.com.mx/cdn/shop/files/VZA5807762.jpg?v=1755884275", 
     colors: [
       { name: "Blanco", hex: "#FFFFFF", stock: 25 },
       { name: "Azul Marino", hex: "#000080", stock: 18 },
@@ -101,6 +104,7 @@ export const products = [
     discount: 20,
     rating: 4.8,
     description: "Botines casuales de diseño moderno, ideales para temporada de lluvias.",
+    image: "https://workland.com.mx/cdn/shop/files/1d8a9790-5bbb-4165-a61d-8ea6397dd6cb.jpg?v=1768040245&width=1946", 
     colors: [
       { name: "Café", hex: "#8B4513", stock: 10 },
       { name: "Negro", hex: "#000000", stock: 8 },
@@ -130,6 +134,7 @@ export const products = [
     discount: 25,
     rating: 4.4,
     description: "Sandalias casuales cómodas para climas cálidos, diseño ergonómico.",
+    image: "https://resources.sanborns.com.mx/medios-plazavip/t1/1744047023LIV3CBHH0768jpg?scale=50&qlty=75", 
     colors: [
       { name: "Café", hex: "#8B4513", stock: 30 },
       { name: "Negro", hex: "#000000", stock: 25 },
