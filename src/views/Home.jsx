@@ -67,21 +67,25 @@ const Home = () => {
 
   // Iniciar cámara para escanear QR
   const startQRScan = async () => {
-    setShowQRScanner(true);
     setCameraError('');
     setQrCodeInput('');
     setIsCameraActive(false);
+    setShowQRScanner(true);
+    
+    // Esperar un frame para que el DOM se actualice
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     try {
       // Detener cámara si ya está activa
       if (streamRef.current) {
-        stopCamera();
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
       }
 
       // Solicitar permisos y acceder a la cámara
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment', // Usar cámara trasera en móviles
+          facingMode: 'environment',
           width: { ideal: 1280 },
           height: { ideal: 720 }
         },
@@ -90,32 +94,14 @@ const Home = () => {
 
       streamRef.current = stream;
       
-      // Pequeño delay para asegurar que el componente se renderice
-      setTimeout(() => {
-        if (videoRef.current && streamRef.current) {
-          videoRef.current.srcObject = streamRef.current;
-          
-          // Configurar el video
-          videoRef.current.setAttribute('playsinline', 'true');
-          videoRef.current.setAttribute('autoplay', 'true');
-          videoRef.current.setAttribute('muted', 'true');
-          
-          // Intentar reproducir
-          videoRef.current.play()
-            .then(() => {
-              console.log('Video reproduciendo correctamente');
-              setIsCameraActive(true);
-            })
-            .catch(err => {
-              console.error('Error al reproducir video:', err);
-              setCameraError('Error al iniciar la visualización de la cámara');
-              setIsCameraActive(false);
-            });
-        }
-      }, 100);
+      // Asignar stream al video
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // Activar inmediatamente - el video tiene autoPlay en el HTML
+        setIsCameraActive(true);
+      }
       
     } catch (error) {
-      console.error('Error al acceder a la cámara:', error);
       let errorMessage = 'No se pudo acceder a la cámara. ';
       
       if (error.name === 'NotAllowedError') {
@@ -123,9 +109,9 @@ const Home = () => {
       } else if (error.name === 'NotFoundError') {
         errorMessage += 'No se encontró cámara.';
       } else if (error.name === 'NotReadableError') {
-        errorMessage += 'La cámara está en uso por otra aplicación.';
+        errorMessage += 'La cámara está en uso.';
       } else {
-        errorMessage += 'Error desconocido.';
+        errorMessage += 'Error: ' + error.message;
       }
       
       setCameraError(errorMessage);
@@ -327,7 +313,7 @@ const Home = () => {
               <div className="relative">
                 {/* Vista de la cámara */}
                 <div className="border-2 border-blue-500 rounded-lg overflow-hidden mb-4">
-                  <div className="bg-gray-900/45 relative">
+                  <div className="bg-gray-900/85 relative">
                     {isCameraActive ? (
                       <>
                         {/* Video de la cámara */}
