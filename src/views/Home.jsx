@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../routes';
 import { products } from '../data/products';
-import Footer from '../components/footer';
+import Footer from '../components/Footer';
 
 const Home = () => {
   const [searchTerm, setSearchTerm] = useState('');
