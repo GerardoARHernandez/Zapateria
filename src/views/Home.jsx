@@ -14,12 +14,23 @@ const Home = () => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [qrCodeInput, setQrCodeInput] = useState('');
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const { user, logout } = useAuth();
 
   // Detectar si es dispositivo móvil
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  useEffect(() => {
+    const checkMobile = () => {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      setIsMobileDevice(isMobile || isTouchDevice || window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Filtrar productos basado en búsqueda
   useEffect(() => {
@@ -65,11 +76,23 @@ const Home = () => {
     setSelectedSize('');
   };
 
+  // Verificar si el navegador soporta getUserMedia
+  const isGetUserMediaSupported = () => {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  };
+
   // Iniciar cámara para escanear QR
   const startQRScan = async () => {
     setShowQRScanner(true);
     setCameraError('');
     setQrCodeInput('');
+    
+    // Verificar si el navegador soporta la API
+    if (!isGetUserMediaSupported()) {
+      setCameraError('Tu navegador no soporta el acceso a la cámara. Usa Chrome, Firefox o Safari.');
+      setIsCameraActive(false);
+      return;
+    }
     
     try {
       // Detener cámara si ya está activa
@@ -77,26 +100,59 @@ const Home = () => {
         stopCamera();
       }
 
-      // Solicitar permisos y acceder a la cámara
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Configuración de la cámara
+      const constraints = {
         video: {
-          facingMode: 'environment', // Usar cámara trasera en móviles
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          facingMode: isMobileDevice ? 'environment' : 'user',
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 }
         },
         audio: false
-      });
+      };
+
+      console.log('Solicitando permisos de cámara...');
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Cámara accedida correctamente');
 
       streamRef.current = stream;
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setIsCameraActive(true);
+        
+        // Esperar a que el video esté listo
+        videoRef.current.onloadedmetadata = () => {
+          console.log('Video metadata cargado');
+          videoRef.current.play().then(() => {
+            console.log('Video reproduciéndose');
+            setIsCameraActive(true);
+          }).catch(err => {
+            console.error('Error al reproducir video:', err);
+            setCameraError('Error al reproducir el video de la cámara');
+          });
+        };
+        
+        // Manejar errores del video
+        videoRef.current.onerror = (err) => {
+          console.error('Error en elemento video:', err);
+          setCameraError('Error en el elemento de video');
+        };
       }
     } catch (error) {
-      console.error('Error al acceder a la cámara:', error);
-      setCameraError('No se pudo acceder a la cámara. Verifica los permisos.');
+      console.error('Error detallado al acceder a la cámara:', error);
+      
+      // Mensajes de error más específicos
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        setCameraError('Permiso de cámara denegado. Por favor, permite el acceso a la cámara en la configuración de tu navegador.');
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        setCameraError('No se encontró ninguna cámara disponible en tu dispositivo.');
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        setCameraError('La cámara está siendo usada por otra aplicación o no está disponible.');
+      } else if (error.name === 'OverconstrainedError') {
+        setCameraError('No se pudo encontrar una cámara que cumpla con los requisitos.');
+      } else {
+        setCameraError(`Error al acceder a la cámara: ${error.message || 'Error desconocido'}`);
+      }
+      
       setIsCameraActive(false);
     }
   };
@@ -104,7 +160,11 @@ const Home = () => {
   // Detener cámara
   const stopCamera = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      console.log('Deteniendo cámara...');
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log('Track detenido:', track.kind);
+      });
       streamRef.current = null;
     }
     if (videoRef.current) {
@@ -280,7 +340,7 @@ const Home = () => {
         {/* Search Section */}
         <div className="max-w-3xl mx-auto mb-12">
           {/* QR Scanner Section */}
-          {showQRScanner && isMobile && (
+          {showQRScanner && isMobileDevice && (
             <div className="mb-6 bg-white rounded-xl shadow-lg p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">Lector de Código QR</h3>
@@ -304,7 +364,7 @@ const Home = () => {
                           autoPlay
                           playsInline
                           muted
-                          className="w-full h-64 object-cover"
+                          className="w-full h-64 object-cover bg-black"
                         />
                         
                         {/* Marco de escaneo superpuesto */}
@@ -330,18 +390,30 @@ const Home = () => {
                         </div>
                       </>
                     ) : (
-                      <div className="h-64 flex flex-col items-center justify-center text-white">
+                      <div className="h-64 flex flex-col items-center justify-center text-white p-4">
                         {cameraError ? (
                           <>
                             <div className="text-4xl mb-3">⚠️</div>
-                            <p className="font-medium mb-2">{cameraError}</p>
-                            <p className="text-sm text-gray-300">Usa la entrada manual de código</p>
+                            <p className="font-medium mb-2 text-center">{cameraError}</p>
+                            <p className="text-sm text-gray-300 text-center">Usa la entrada manual de código abajo</p>
+                            
+                            {/* Información de solución de problemas */}
+                            <div className="mt-4 text-xs text-gray-300 bg-black bg-opacity-50 p-3 rounded-lg">
+                              <p className="font-medium mb-1">Solución de problemas:</p>
+                              <ul className="text-left space-y-1">
+                                <li>• Asegúrate de dar permisos de cámara</li>
+                                <li>• Usa Chrome, Firefox o Safari</li>
+                                <li>• Reinicia la página si persiste el error</li>
+                                <li>• Verifica que la cámara no esté en uso</li>
+                              </ul>
+                            </div>
                           </>
                         ) : (
                           <>
-                            <div className="text-4xl mb-3">📱</div>
+                            <div className="text-4xl mb-3 animate-pulse">📱</div>
                             <p className="font-medium mb-2">Iniciando cámara...</p>
-                            <p className="text-sm text-gray-300">Por favor, permite el acceso a la cámara</p>
+                            <p className="text-sm text-gray-300 mb-3">Por favor, permite el acceso a la cámara cuando se solicite</p>
+                            <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                           </>
                         )}
                       </div>
@@ -385,6 +457,15 @@ const Home = () => {
                     Prueba con: CASUAL-3390, FORMAL-5018, DEPORT-5021
                   </p>
                 </div>
+                
+                {/* Información técnica */}
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs text-gray-600 text-center">
+                    <strong>URL:</strong> {window.location.hostname} • 
+                    <strong> HTTPS:</strong> {window.location.protocol === 'https:' ? 'Sí' : 'No'} • 
+                    <strong> Cámara:</strong> {isGetUserMediaSupported() ? 'Soportada' : 'No soportada'}
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -409,7 +490,7 @@ const Home = () => {
               </button>
               
               {/* Botón de escanear QR (solo móvil) */}
-              {isMobile && (
+              {isMobileDevice && (
                 <button
                   type="button"
                   onClick={showQRScanner ? stopQRScan : startQRScan}
@@ -434,7 +515,7 @@ const Home = () => {
           </div>
           
           {/* Información QR para desktop */}
-          {!isMobile && (
+          {!isMobileDevice && (
             <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
               <div className="flex items-center">
                 <div className="text-blue-600 text-2xl mr-3">📱</div>
@@ -470,7 +551,7 @@ const Home = () => {
                 >
                   Ver todos los productos
                 </button>
-                {isMobile && (
+                {isMobileDevice && (
                   <button 
                     onClick={startQRScan}
                     className="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors shadow-md flex items-center justify-center"
@@ -620,7 +701,7 @@ const Home = () => {
                 <button
                   onClick={closeModal}
                   className="flex-1 py-3 px-6 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
-                >3
+                >
                   Seguir Explorando
                 </button>
               </div>
