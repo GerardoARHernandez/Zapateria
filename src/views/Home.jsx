@@ -313,7 +313,7 @@ const Home = () => {
               <div className="relative">
                 {/* Vista de la cámara */}
                 <div className="border-2 border-blue-500 rounded-lg overflow-hidden mb-4">
-                  <div className="bg-gray-900 relative">
+                  <div className="bg-gray-900/15 relative">
                     {isCameraActive ? (
                       <>
                         {/* Video de la cámara */}
