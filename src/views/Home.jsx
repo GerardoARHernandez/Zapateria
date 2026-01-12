@@ -11,10 +11,7 @@ const Home = () => {
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [qrCodeInput, setQrCodeInput] = useState('');
   const fileInputRef = useRef(null);
-  const videoRef = useRef(null);
   const { user, logout } = useAuth();
 
   // Detectar si es dispositivo móvil
@@ -57,41 +54,27 @@ const Home = () => {
     setSelectedSize('');
   };
 
-  // Simular inicio de escaneo QR
+  // Iniciar escaneo QR (solo interfaz)
   const startQRScan = () => {
     setShowQRScanner(true);
-    setScanning(true);
-    setQrCodeInput('');
-    
-    // Simulación de escaneo automático después de 2 segundos
-    setTimeout(() => {
-      if (scanning) {
-        simulateQRScan();
-      }
-    }, 2000);
   };
 
   // Detener escaneo QR
   const stopQRScan = () => {
     setShowQRScanner(false);
-    setScanning(false);
   };
 
-  // Simular escaneo de QR
-  const simulateQRScan = () => {
-    setScanning(false);
-    
-    // Elegir un producto aleatorio o usar uno específico para demo
-    const demoProducts = ['CASUAL-3390', 'FORMAL-5018', 'DEPORT-5021'];
-    const randomQR = demoProducts[Math.floor(Math.random() * demoProducts.length)];
-    
-    processQRResult(randomQR);
+  // Manejar entrada manual de código QR
+  const handleManualQRSubmit = (e) => {
+    e.preventDefault();
+    const qrCodeInput = e.target.qrCode.value.trim();
+    if (qrCodeInput) {
+      processQRResult(qrCodeInput);
+    }
   };
 
   // Procesar resultado del QR
   const processQRResult = (qrData) => {
-    setQrCodeInput(qrData);
-    
     // Buscar producto por SKU
     let foundProduct = products.find(p => 
       p.sku.toLowerCase().includes(qrData.toLowerCase()) || 
@@ -110,23 +93,10 @@ const Home = () => {
     }
     
     if (foundProduct) {
-      setTimeout(() => {
-        openProductModal(foundProduct);
-        setShowQRScanner(false);
-      }, 1000);
+      openProductModal(foundProduct);
+      setShowQRScanner(false);
     } else {
-      // Mostrar formulario para ingresar código manualmente
-      setTimeout(() => {
-        setScanning(false);
-      }, 500);
-    }
-  };
-
-  // Manejar entrada manual de código QR
-  const handleManualQRSubmit = (e) => {
-    e.preventDefault();
-    if (qrCodeInput.trim()) {
-      processQRResult(qrCodeInput.trim());
+      alert(`No se encontró un producto con el código: ${qrData}`);
     }
   };
 
@@ -134,27 +104,14 @@ const Home = () => {
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      // Simulamos la lectura de un QR de imagen
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        // Para demo, usamos un código fijo
-        const simulatedQR = 'CASUAL-3390';
-        setQrCodeInput(simulatedQR);
-        processQRResult(simulatedQR);
-      };
-      reader.readAsDataURL(file);
+      alert('En una aplicación real, aquí se procesaría la imagen para extraer el código QR.');
+      // Para demo, sugerimos un código
+      setTimeout(() => {
+        if (window.confirm('¿Deseas probar con un código de ejemplo? (Ej: CASUAL-3390)')) {
+          processQRResult('CASUAL-3390');
+        }
+      }, 500);
     }
-  };
-
-  // Generar QR para productos (simulación)
-  const generateProductQR = (product) => {
-    return `SKU: ${product.sku}\nProducto: ${product.name}\nPrecio: $${product.price}\nCategoría: ${product.category}`;
-  };
-
-  // Mostrar QR del producto
-  const showProductQR = (product) => {
-    const qrInfo = generateProductQR(product);
-    alert(`📱 Código QR para ${product.name}:\n\n${qrInfo}\n\n(En una app real, esto generaría un código QR escaneable)`);
   };
 
   const handleAddToCart = () => {
@@ -212,20 +169,11 @@ const Home = () => {
             )}
           </div>
           
-          {/* Código QR pequeño (simulado) */}
+          {/* Código QR pequeño */}
           <div className="mt-3 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500">SKU: {product.sku}</span>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  showProductQR(product);
-                }}
-                className="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center"
-              >
-                <span className="mr-1">📱</span>
-                Ver QR
-              </button>
+              <span className="text-xs text-gray-400">Código: {product.sku}</span>
             </div>
           </div>
         </div>
@@ -239,9 +187,21 @@ const Home = () => {
       <header className="bg-white shadow-md">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-2">
-              <image src="/images/logo.jpeg" alt="Logo" className="w-10 h-10" />
-              <h1 className="text-2xl font-bold text-gray-800">Planet Shoes</h1>
+            <div className="flex items-center space-x-3">
+              {/* Logo - CORREGIDO: Usar img en lugar de image */}
+              <img 
+                src="/images/logo.jpeg" 
+                alt="Logo Planet Shoes" 
+                className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='%233b82f6'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z'/%3E%3C/svg%3E";
+                }}
+              />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">Planet Shoes</h1>
+                <p className="text-xs text-gray-500">Tu calzado perfecto</p>
+              </div>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -277,7 +237,7 @@ const Home = () => {
           {showQRScanner && isMobile && (
             <div className="mb-6 bg-white rounded-xl shadow-lg p-4">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Escáner de Código QR</h3>
+                <h3 className="text-lg font-semibold text-gray-800">Lector de Código QR</h3>
                 <button
                   onClick={stopQRScan}
                   className="text-gray-500 hover:text-gray-700 text-xl"
@@ -287,53 +247,32 @@ const Home = () => {
               </div>
               
               <div className="relative">
-                {/* Simulación de vista de cámara */}
+                {/* Vista del lector QR */}
                 <div className="border-2 border-blue-500 rounded-lg overflow-hidden mb-4">
                   <div className="bg-gray-900 p-8">
                     <div className="text-center text-white">
-                      {scanning ? (
-                        <>
-                          <div className="text-4xl mb-4">📱</div>
-                          <p className="mb-4 font-medium">Escaneando código QR...</p>
-                          
-                          {/* Animación de escaneo */}
-                          <div className="relative w-64 h-64 mx-auto mb-4">
-                            {/* Marco del scanner */}
-                            <div className="absolute inset-0 border-2 border-green-500 rounded-lg"></div>
-                            
-                            {/* Línea de escaneo animada */}
-                            <div className="absolute top-0 left-0 right-0 h-1 bg-green-500 animate-scan"></div>
-                            
-                            {/* Esquinas decorativas */}
-                            <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-green-500"></div>
-                            <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-green-500"></div>
-                            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-green-500"></div>
-                            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-green-500"></div>
-                            
-                            {/* Puntos de alineación */}
-                            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                              <div className="flex space-x-2">
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <p className="text-sm text-gray-300">Apunta la cámara al código QR del producto</p>
-                        </>
-                      ) : (
-                        <div className="py-8">
-                          <div className="text-4xl mb-4 text-green-500">✓</div>
-                          <p className="text-lg font-medium mb-2">¡Código detectado!</p>
-                          <p className="text-sm text-gray-300">Procesando producto...</p>
-                          {qrCodeInput && (
-                            <div className="mt-4 p-3 bg-gray-800 rounded-lg">
-                              <p className="text-sm font-mono">Código: {qrCodeInput}</p>
-                            </div>
-                          )}
+                      <div className="text-4xl mb-4">📱</div>
+                      <p className="mb-4 font-medium">Lector QR Listo</p>
+                      
+                      {/* Marco del lector */}
+                      <div className="relative w-64 h-64 mx-auto mb-4">
+                        {/* Marco del scanner */}
+                        <div className="absolute inset-0 border-2 border-green-500 rounded-lg"></div>
+                        
+                        {/* Esquinas decorativas */}
+                        <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-green-500"></div>
+                        <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-green-500"></div>
+                        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-green-500"></div>
+                        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-green-500"></div>
+                        
+                        {/* Mensaje central */}
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                          <div className="text-3xl mb-2">⎙</div>
+                          <p className="text-xs">Enfoque el código QR</p>
                         </div>
-                      )}
+                      </div>
+                      
+                      <p className="text-sm text-gray-300">Interfaz de lector QR - Versión demostración</p>
                     </div>
                   </div>
                 </div>
@@ -343,9 +282,9 @@ const Home = () => {
                   <div className="flex items-start">
                     <span className="text-blue-600 mr-2 mt-1">💡</span>
                     <div>
-                      <p className="text-sm text-blue-800 font-medium mb-1">Modo demostración</p>
+                      <p className="text-sm text-blue-800 font-medium mb-1">Interfaz de demostración</p>
                       <p className="text-xs text-blue-700">
-                        Esta es una simulación. En una app real, se usaría la cámara del dispositivo para escanear códigos QR reales.
+                        Esta es la interfaz visual del lector QR. En una app real con permisos de cámara, aquí se vería la vista previa de la cámara.
                       </p>
                     </div>
                   </div>
@@ -353,12 +292,11 @@ const Home = () => {
                 
                 {/* Entrada manual de código QR */}
                 <div className="mb-4">
-                  <p className="text-sm text-gray-600 mb-2">O ingresa un código manualmente:</p>
+                  <p className="text-sm text-gray-600 mb-2">Ingresa un código manualmente:</p>
                   <form onSubmit={handleManualQRSubmit} className="flex">
                     <input
                       type="text"
-                      value={qrCodeInput}
-                      onChange={(e) => setQrCodeInput(e.target.value)}
+                      name="qrCode"
                       placeholder="Ej: CASUAL-3390"
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     />
@@ -381,7 +319,7 @@ const Home = () => {
                     className="w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center"
                   >
                     <span className="mr-2">📁</span>
-                    Simular subida de imagen con QR
+                    Cargar imagen con QR
                   </button>
                   <input
                     type="file"
@@ -391,22 +329,6 @@ const Home = () => {
                     className="hidden"
                   />
                 </div>
-                
-                {/* Botón para simular escaneo */}
-                {!scanning && !qrCodeInput && (
-                  <div className="mt-4">
-                    <button
-                      onClick={simulateQRScan}
-                      className="w-full py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-green-700 transition-all flex items-center justify-center shadow-md"
-                    >
-                      <span className="mr-2">🔍</span>
-                      Simular escaneo de código QR
-                    </button>
-                    <p className="text-xs text-center text-gray-500 mt-2">
-                      (Se simulará el escaneo de un producto aleatorio)
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -442,7 +364,7 @@ const Home = () => {
                   }`}
                 >
                   <span className="mr-2">{showQRScanner ? '✕' : '📱'}</span>
-                  {showQRScanner ? 'Cancelar' : 'Escanear QR'}
+                  {showQRScanner ? 'Cerrar' : 'Lector QR'}
                 </button>
               )}
             </div>
@@ -463,9 +385,8 @@ const Home = () => {
                 <div>
                   <p className="text-sm text-blue-800 font-medium mb-1">Función móvil disponible</p>
                   <p className="text-xs text-blue-700">
-                    En dispositivos móviles puedes usar el botón "Escanear QR" para simular 
-                    la búsqueda de productos mediante código QR. Esta es una demostración 
-                    de cómo funcionaría en una app real.
+                    En dispositivos móviles puedes usar el botón "Lector QR" para ver 
+                    la interfaz de escaneo de códigos QR (modo demostración).
                   </p>
                 </div>
               </div>
@@ -499,7 +420,7 @@ const Home = () => {
                     className="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors shadow-md flex items-center justify-center"
                   >
                     <span className="mr-2">📱</span>
-                    Simular escaneo QR
+                    Abrir Lector QR
                   </button>
                 )}
               </div>
@@ -507,11 +428,39 @@ const Home = () => {
           )}
         </div>
 
+        {/* Información sobre códigos QR */}
+        <div className="mt-12 bg-white rounded-xl shadow-md p-6">
+          <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+            Sistema de Búsqueda por Código QR
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="text-center p-4">
+              <div className="text-4xl text-blue-600 mb-3">1️⃣</div>
+              <h4 className="font-semibold text-gray-800 mb-2">Encuentra el código</h4>
+              <p className="text-gray-600 text-sm">
+                Cada producto tiene un código QR único con su información
+              </p>
+            </div>
+            <div className="text-center p-4">
+              <div className="text-4xl text-green-600 mb-3">2️⃣</div>
+              <h4 className="font-semibold text-gray-800 mb-2">Usa el lector</h4>
+              <p className="text-gray-600 text-sm">
+                Abre el lector QR desde tu dispositivo móvil
+              </p>
+            </div>
+            <div className="text-center p-4">
+              <div className="text-4xl text-purple-600 mb-3">3️⃣</div>
+              <h4 className="font-semibold text-gray-800 mb-2">Obtén detalles</h4>
+              <p className="text-gray-600 text-sm">
+                Accede a toda la información del producto al instante
+              </p>
+            </div>
+          </div>
+        </div>
       </main>
 
       {/* Footer */}
       <Footer />
-      
 
       {/* Modal de Detalles del Producto */}
       {isModalOpen && selectedProduct && (
@@ -534,23 +483,6 @@ const Home = () => {
             </div>
             
             <div className="p-6">
-              {/* Código QR del producto en el modal */}
-              <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                <div className="flex flex-col md:flex-row items-center justify-between">
-                  <div className="mb-4 md:mb-0">
-                    <h4 className="font-semibold text-gray-800 mb-1">Código QR de este producto</h4>
-                    <p className="text-sm text-gray-600">En una tienda real, este código estaría en la etiqueta</p>
-                  </div>
-                  <button
-                    onClick={() => showProductQR(selectedProduct)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center shadow-sm"
-                  >
-                    <span className="mr-2">📱</span>
-                    Ver información del código QR
-                  </button>
-                </div>
-              </div>
-
               {/* Información del producto */}
               <div className="mb-8">
                 <div className="flex justify-between items-start mb-4">
@@ -669,21 +601,6 @@ const Home = () => {
           </div>
         </div>
       )}
-
-      {/* Estilos para animación de escaneo */}
-      <style jsx>{`
-        @keyframes scan {
-          0% {
-            transform: translateY(0);
-          }
-          100% {
-            transform: translateY(256px);
-          }
-        }
-        .animate-scan {
-          animation: scan 2s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };
