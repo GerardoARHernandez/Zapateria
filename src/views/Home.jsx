@@ -36,6 +36,14 @@ const Home = () => {
     }
   }, [searchTerm]);
 
+  // Verificar compatibilidad de cámara al cargar
+  useEffect(() => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error('MediaDevices API no soportada en este navegador');
+      setCameraError('Tu navegador no soporta acceso a la cámara');
+    }
+  }, []);
+
   // Limpiar cámara al desmontar
   useEffect(() => {
     return () => {
@@ -43,31 +51,127 @@ const Home = () => {
     };
   }, []);
 
+  // Listener para reintentar cámara
+  useEffect(() => {
+    const handleRetryCamera = () => {
+      if (showQRScanner) {
+        stopCamera();
+        setTimeout(() => {
+          const initCamera = async () => {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' },
+                audio: false
+              });
+              streamRef.current = stream;
+              if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                setIsCameraActive(true);
+              }
+            } catch (error) {
+              setCameraError('Error al reiniciar cámara');
+            }
+          };
+          initCamera();
+        }, 500);
+      }
+    };
+
+    window.addEventListener('retryCamera', handleRetryCamera);
+    return () => window.removeEventListener('retryCamera', handleRetryCamera);
+  }, [showQRScanner]);
+
   // Iniciar cámara cuando se abre el scanner
   useEffect(() => {
     if (showQRScanner && isMobile) {
       const initCamera = async () => {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' },
-            audio: false
-          });
+          // Verificar permisos primero
+          if (navigator.permissions && navigator.permissions.query) {
+            try {
+              const permissions = await navigator.permissions.query({ name: 'camera' });
+              
+              if (permissions.state === 'denied') {
+                setCameraError('Permiso de cámara denegado. Por favor, habilítalo en configuración.');
+                return;
+              }
+            } catch (permError) {
+              console.log('Permissions API no disponible, continuando...');
+            }
+          }
 
+          // Obtener stream con mejor configuración
+          const constraints = {
+            video: {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          };
+
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
           streamRef.current = stream;
           
-          setTimeout(() => {
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-              setIsCameraActive(true);
-            }
-          }, 200);
+          // Esperar a que el video esté listo
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current.play()
+                .then(() => {
+                  setIsCameraActive(true);
+                  setCameraError('');
+                })
+                .catch(err => {
+                  console.error('Error al reproducir video:', err);
+                  setCameraError('Error al reproducir video: ' + err.message);
+                });
+            };
+          }
           
         } catch (error) {
-          setCameraError('Error: ' + (error.message || 'No se pudo acceder'));
+          console.error('Camera error:', error);
+          
+          // Manejar errores específicos
+          if (error.name === 'NotAllowedError') {
+            setCameraError('Permiso de cámara denegado. Por favor, habilita los permisos en configuración.');
+          } else if (error.name === 'NotFoundError') {
+            setCameraError('No se encontró cámara trasera. Intenta con la frontal.');
+            // Intentar con cámara frontal
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user' },
+                audio: false
+              });
+              streamRef.current = stream;
+              if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                setIsCameraActive(true);
+              }
+            } catch (frontError) {
+              setCameraError('No se pudo acceder a ninguna cámara');
+            }
+          } else if (error.name === 'NotSupportedError') {
+            setCameraError('Tu navegador no soporta esta función.');
+          } else if (error.name === 'NotReadableError') {
+            setCameraError('La cámara está siendo usada por otra aplicación. Cierra otras apps y reintenta.');
+          } else {
+            setCameraError('Error: ' + (error.message || 'No se pudo acceder a la cámara'));
+          }
         }
       };
 
       initCamera();
+
+      // Cleanup function
+      return () => {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => {
+            track.stop();
+          });
+          streamRef.current = null;
+        }
+      };
     }
   }, [showQRScanner, isMobile]);
 
@@ -95,6 +199,10 @@ const Home = () => {
 
   // Iniciar cámara para escanear QR
   const startQRScan = () => {
+    console.log('startQRScan called');
+    console.log('isMobile:', isMobile);
+    console.log('showQRScanner will be true');
+    
     setCameraError('');
     setQrCodeInput('');
     setIsCameraActive(false);
@@ -294,29 +402,59 @@ const Home = () => {
               
               <div className="relative">
                 {/* Vista de la cámara */}
-                <div className="border-2 border-blue-500 rounded-lg overflow-hidden mb-4 bg-black">
+                <div className="border-2 border-blue-500 rounded-lg overflow-hidden mb-4 bg-black relative h-64">
                   {cameraError ? (
-                    <div className="h-64 flex flex-col items-center justify-center text-white">
+                    <div className="h-full flex flex-col items-center justify-center text-white p-4">
                       <div className="text-4xl mb-3">⚠️</div>
-                      <p className="font-medium mb-2">{cameraError}</p>
+                      <p className="font-medium mb-2 text-center">{cameraError}</p>
+                      <button
+                        onClick={() => {
+                          setCameraError('');
+                          // Reintentar
+                          const stream = streamRef.current;
+                          if (stream) {
+                            stream.getTracks().forEach(track => track.stop());
+                            streamRef.current = null;
+                          }
+                          // Reiniciar cámara después de un breve delay
+                          setTimeout(() => {
+                            const event = new Event('retryCamera');
+                            window.dispatchEvent(event);
+                          }, 1000);
+                        }}
+                        className="mt-2 px-4 py-2 bg-blue-600 rounded-lg text-sm"
+                      >
+                        Reintentar
+                      </button>
                     </div>
-                  ) : isCameraActive ? (
-                    <div className="relative">
+                  ) : (
+                    <div className="relative h-full">
                       <video
                         ref={videoRef}
                         autoPlay
                         playsInline
                         muted
-                        className="w-full h-64 object-cover"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          console.error('Video error:', e);
+                          setCameraError('Error al cargar video de cámara');
+                        }}
                       />
-                      <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white p-2 text-center text-sm">
-                        📷 Cámara activa
+                      {/* Overlay para guía de QR */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-48 h-48 border-2 border-green-500 border-dashed rounded-lg opacity-70"></div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="h-64 flex flex-col items-center justify-center text-white">
-                      <div className="text-4xl mb-3">📱</div>
-                      <p className="font-medium mb-2">Iniciando cámara...</p>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white p-2 text-center text-sm">
+                        📷 Apunta el código QR al cuadro verde
+                      </div>
+                      {!isCameraActive && !cameraError && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-white text-center">
+                            <div className="text-4xl mb-2 animate-pulse">📱</div>
+                            <p className="font-medium">Iniciando cámara...</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -357,6 +495,21 @@ const Home = () => {
                     Prueba con: CASUAL-3390, FORMAL-5018, DEPORT-5021
                   </p>
                 </div>
+
+                {/* Información de depuración (solo desarrollo) */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="mt-4 p-3 bg-gray-100 rounded-lg">
+                    <p className="text-xs text-gray-600 mb-1">
+                      <strong>Estado cámara:</strong> {isCameraActive ? 'Activa' : 'Inactiva'}
+                    </p>
+                    <p className="text-xs text-gray-600 mb-1">
+                      <strong>Stream:</strong> {streamRef.current ? 'Conectado' : 'No conectado'}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      <strong>Video:</strong> {videoRef.current?.srcObject ? 'Listo' : 'No listo'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -600,6 +753,22 @@ const Home = () => {
           </div>
         </div>
       )}
+
+      {/* Estilos CSS para el video */}
+      <style jsx>{`
+        video {
+          transform: rotateY(180deg);
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        
+        @media (max-width: 640px) {
+          video {
+            transform: rotateY(180deg);
+          }
+        }
+      `}</style>
     </div>
   );
 };
