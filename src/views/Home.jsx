@@ -66,57 +66,11 @@ const Home = () => {
   };
 
   // Iniciar cámara para escanear QR
-  const startQRScan = async () => {
+  const startQRScan = () => {
     setCameraError('');
     setQrCodeInput('');
     setIsCameraActive(false);
     setShowQRScanner(true);
-    
-    // Esperar un frame para que el DOM se actualice
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
-    try {
-      // Detener cámara si ya está activa
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-
-      // Solicitar permisos y acceder a la cámara
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      });
-
-      streamRef.current = stream;
-      
-      // Asignar stream al video
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        // Activar inmediatamente - el video tiene autoPlay en el HTML
-        setIsCameraActive(true);
-      }
-      
-    } catch (error) {
-      let errorMessage = 'No se pudo acceder a la cámara. ';
-      
-      if (error.name === 'NotAllowedError') {
-        errorMessage += 'Permisos denegados.';
-      } else if (error.name === 'NotFoundError') {
-        errorMessage += 'No se encontró cámara.';
-      } else if (error.name === 'NotReadableError') {
-        errorMessage += 'La cámara está en uso.';
-      } else {
-        errorMessage += 'Error: ' + error.message;
-      }
-      
-      setCameraError(errorMessage);
-      setIsCameraActive(false);
-    }
   };
 
   // Detener cámara
