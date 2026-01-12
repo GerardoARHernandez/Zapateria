@@ -19,6 +19,7 @@ const Home = () => {
   const [cameraError, setCameraError] = useState('');
   const [qrCodeInput, setQrCodeInput] = useState('');
   const streamRef = useRef(null);
+  const videoRef = useRef(null); // Añade el videoRef aquí en el componente principal
   const { logout } = useAuth();
 
   // Detectar si es dispositivo móvil
@@ -67,7 +68,10 @@ const Home = () => {
                 audio: false
               });
               streamRef.current = stream;
-              setIsCameraActive(true);
+              if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                setIsCameraActive(true);
+              }
             } catch (error) {
               setCameraError('Error al reiniciar cámara');
             }
@@ -81,7 +85,7 @@ const Home = () => {
     return () => window.removeEventListener('retryCamera', handleRetryCamera);
   }, [showQRScanner]);
 
-  // Iniciar cámara cuando se abre el scanner
+  // Iniciar cámara cuando se abre el scanner - REVISADO
   useEffect(() => {
     if (showQRScanner && isMobile) {
       const initCamera = async () => {
@@ -112,7 +116,25 @@ const Home = () => {
 
           const stream = await navigator.mediaDevices.getUserMedia(constraints);
           streamRef.current = stream;
-          setIsCameraActive(true);
+          
+          // Esperar a que el video esté listo - IMPORTANTE: esto debe estar aquí
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current.play()
+                .then(() => {
+                  setIsCameraActive(true);
+                  setCameraError('');
+                })
+                .catch(err => {
+                  console.error('Error al reproducir video:', err);
+                  setCameraError('Error al reproducir video: ' + err.message);
+                });
+            };
+          } else {
+            console.error('videoRef.current no está disponible');
+            setIsCameraActive(true); // Fallback
+          }
           
         } catch (error) {
           console.error('Camera error:', error);
@@ -129,7 +151,10 @@ const Home = () => {
                 audio: false
               });
               streamRef.current = stream;
-              setIsCameraActive(true);
+              if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                setIsCameraActive(true);
+              }
             } catch (frontError) {
               setCameraError('No se pudo acceder a ninguna cámara');
             }
@@ -183,7 +208,7 @@ const Home = () => {
   const startQRScan = () => {
     console.log('startQRScan called');
     console.log('isMobile:', isMobile);
-    console.log('showQRScanner will be true');
+    console.log('videoRef:', videoRef.current);
     
     setCameraError('');
     setQrCodeInput('');
@@ -191,11 +216,14 @@ const Home = () => {
     setShowQRScanner(true);
   };
 
-  // Detener cámara
+  // Detener cámara - REVISADO
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
   };
@@ -301,7 +329,7 @@ const Home = () => {
 
         {/* Search Section */}
         <div className="max-w-3xl mx-auto mb-12">
-          {/* QR Scanner Component */}
+          {/* QR Scanner Component - PASA videoRef como prop */}
           <QRScanner
             showQRScanner={showQRScanner}
             isMobile={isMobile}
@@ -314,6 +342,7 @@ const Home = () => {
             onQrCodeInputChange={setQrCodeInput}
             streamRef={streamRef}
             onRetryCamera={handleRetryCamera}
+            videoRef={videoRef} 
           />
 
           {/* Search Bar */}
@@ -418,6 +447,15 @@ const Home = () => {
         onAddToCart={handleAddToCart}
         formatPrice={formatPrice}
       />
+
+      {/* Estilos CSS para el video */}
+      <style jsx>{`
+        @media (max-width: 640px) {
+          video {
+            transform: rotateY(180deg) !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

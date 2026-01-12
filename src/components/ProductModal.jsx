@@ -239,37 +239,14 @@ const ProductModal = ({
             )}
             
             {/* Botones de acción finales */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button
-                onClick={onAddToCart}
-                disabled={!selectedProduct.inStock || !selectedSize}
-                className={`flex-1 py-3 sm:py-4 px-6 rounded-lg font-semibold transition-colors shadow-sm text-base sm:text-lg ${
-                  selectedProduct.inStock && selectedSize
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {selectedProduct.inStock 
-                  ? selectedSize 
-                    ? `✅ Confirmar Solicitud - ${formatPrice(selectedProduct.price)}`
-                    : 'Selecciona una talla primero'
-                  : 'Producto Agotado'}
-              </button>
-              
+            <div className="flex flex-col sm:flex-row gap-4">              
               <button
                 onClick={onCloseModal}
                 className="flex-1 py-3 sm:py-4 px-6 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors text-base sm:text-lg"
               >
                 Seguir Explorando
               </button>
-            </div>
-            
-            {/* Información adicional */}
-            <div className="mt-4 text-center">
-              <p className="text-xs sm:text-sm text-gray-500">
-                Al solicitar, un asesor se pondrá en contacto contigo para finalizar la compra
-              </p>
-            </div>
+            </div>            
           </div>
         </div>
       </div>
