@@ -28,6 +28,21 @@ const Login = () => {
       return;
     }
 
+    // Credenciales especiales para proveedor
+    if (email === 'provedor@c.com' && password) {
+      // Cualquier contraseña funciona para este correo
+      try {
+        await new Promise(resolve => setTimeout(resolve, 800)); // Simula proceso de login
+        login(email, 'proveedor'); // Login con rol 'proveedor'
+        navigate('/proveedor'); // Redirige a la ruta de proveedor
+      } catch (err) {
+        setError('Error al iniciar sesión. Intenta nuevamente.');
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Para otros usuarios (validación normal)
     if (password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres');
       setIsLoading(false);
@@ -37,7 +52,7 @@ const Login = () => {
     // Simulamos inicio de sesión exitoso con un pequeño delay
     try {
       await new Promise(resolve => setTimeout(resolve, 800)); // Simula proceso de login
-      login(email);
+      login(email, 'user'); // Login con rol 'user' por defecto
       navigate('/');
     } catch (err) {
       setError('Error al iniciar sesión. Intenta nuevamente.');
@@ -71,7 +86,7 @@ const Login = () => {
       {/* Card de login */}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100">
         {/* Header decorativo */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 h-2"></div>
+        <div className="bg-linear-to-r from-blue-600 to-indigo-700 h-2"></div>
         
         <div className="p-8 sm:p-10">
           <div className="text-center mb-8">
@@ -86,7 +101,7 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg text-sm flex items-center gap-2 animate-fade-in">
-                <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
                 <span>{error}</span>
@@ -140,11 +155,18 @@ const Login = () => {
               </div>
             </div>
 
+            {/* Nota para credenciales de prueba */}
+            <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+              <p className="font-medium mb-1">Credenciales de prueba:</p>
+              <p>• Proveedor: provedor@c.com (cualquier contraseña)</p>
+              <p>• Usuario normal: cualquier correo con contraseña de 6+ caracteres</p>
+            </div>
+
             {/* Botón de submit */}
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3 rounded-lg transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 ${
+              className={`w-full bg-linear-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3 rounded-lg transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 ${
                 isLoading ? 'opacity-75 cursor-not-allowed' : 'hover:from-blue-700 hover:to-indigo-700'
               }`}
             >

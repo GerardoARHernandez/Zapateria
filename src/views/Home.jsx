@@ -17,6 +17,7 @@ const Home = () => {
   const [qrCodeInput, setQrCodeInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const streamRef = useRef(null);
   const videoRef = useRef(null);
   const { logout } = useAuth();
@@ -461,14 +462,83 @@ const Home = () => {
     }, 100);
   };
 
-  const handleAddToCart = () => {
+  // Función para enviar pedido a la API - CORREGIDA
+  const handleAddToCart = async () => {
     if (!selectedSize) {
       alert('Por favor selecciona una talla');
       return;
     }
+
+    // Obtener los datos del color seleccionado
+    const selectedColorData = getSelectedColorData();
     
-    alert(`¡Producto solicitado!\n${selectedProduct.name}\nModelo: ${selectedProduct.modelo}\nColor: ${selectedColor}\nTalla: ${selectedSize}`);
+    if (!selectedProduct || !selectedColorData) {
+      alert('Error: No hay producto seleccionado');
+      return;
+    }
+
+    setIsSubmittingOrder(true);
+
+    try {
+      const selectedSizeFloat = parseFloat(selectedSize);
+      
+      // Buscar en los datos originales de la API el artículo específico
+      const foundItem = selectedProduct.apiData.find(item => {
+        const itemColor = (item.color || '').trim().toUpperCase();
+        const selectedColorUpper = (selectedColor || '').trim().toUpperCase();
+        const itemSize = parseInt(item.talla) / 10;
+        
+        return itemColor === selectedColorUpper && 
+              Math.abs(itemSize - selectedSizeFloat) < 0.1; // Tolerancia para decimales
+      });
+
+      if (!foundItem) {
+        throw new Error('No se encontró el artículo específico');
+      }
+
+      // Preparar datos para la API de pedidos
+      const pedidoData = {
+        articulo: foundItem.id.trim(), // ID del artículo
+        cantidad: 1, // Siempre 1
+        precio: foundItem.precio1 || 0, // precio1 del modelo
+        usuario: "SYS" // Siempre SYS por ahora
+      };
+
+      console.log('Enviando pedido:', pedidoData);
+
+      // Enviar pedido a la API
+      const response = await fetch('https://systemweb.ddns.net/planet-shoes/api/Pedidos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(pedidoData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`¡Pedido realizado con éxito!\n\nProducto: ${selectedProduct.name}\nModelo: ${selectedProduct.modelo}\nColor: ${selectedColor}\nTalla: ${selectedSize}\nPrecio: ${formatPrice(foundItem.precio1 || 0)}\n\nID del pedido: ${result.data?.id || 'N/A'}`);
+        
+        // Cerrar el modal después del pedido exitoso
+        closeModal();
+      } else {
+        throw new Error(result.message || 'Error al procesar el pedido');
+      }
+
+    } catch (error) {
+      console.error('Error al enviar pedido:', error);
+      alert(`Error al realizar el pedido: ${error.message}`);
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
+    
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('es-MX', {
@@ -497,7 +567,7 @@ const Home = () => {
       <Header onLogout={handleLogout} />
 
       {/* Main Content */}
-      <main className="flex-grow container mx-auto px-4 py-8">
+      <main className="grow container mx-auto px-4 py-8">
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-gray-800 mb-4">
@@ -530,13 +600,21 @@ const Home = () => {
           <form onSubmit={handleSearch} className="w-full">
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
               {/* Campo de búsqueda */}
-              <div className="flex-grow relative">
+              <div className="grow relative">
                 <input
                   type="text"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    // Solo permitir números
+                    const value = e.target.value;
+                    // Remover cualquier caracter que no sea número
+                    const numericValue = value.replace(/[^\d]/g, '');
+                    setSearchTerm(numericValue);
+                  }}
                   placeholder="Ingresa el número de modelo (ej: 31262, 01085, 35035...)"
                   className="w-full px-6 py-4 text-lg border border-gray-300 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white"
+                  pattern="[0-9]*"
+                  inputMode="numeric"
                 />
               </div>
               
@@ -546,7 +624,7 @@ const Home = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex-1 bg-blue-600 text-white px-6 py-4 rounded-2xl hover:bg-blue-700 transition-colors font-medium disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center min-w-[120px]"
+                  className="flex-1 bg-blue-600 text-white px-6 py-4 rounded-2xl hover:bg-blue-700 transition-colors font-medium disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center min-w-30"
                 >
                   {isLoading ? (
                     <div className="flex items-center">
@@ -563,7 +641,7 @@ const Home = () => {
                   <button
                     type="button"
                     onClick={showQRScanner ? stopQRScan : startQRScan}
-                    className={`flex-1 px-6 py-4 rounded-2xl font-medium flex items-center justify-center min-w-[120px] ${
+                    className={`flex-1 px-6 py-4 rounded-2xl font-medium flex items-center justify-center min-w-30 ${
                       showQRScanner 
                         ? 'bg-red-600 text-white hover:bg-red-700' 
                         : 'bg-green-600 text-white hover:bg-green-700'
@@ -575,7 +653,7 @@ const Home = () => {
                 )}
               </div>
             </div>
-          </form>
+          </form>          
           
           {/* Mensaje de error */}
           {apiError && (
@@ -657,6 +735,7 @@ const Home = () => {
           getColorHex={getColorHex}
           buildImageUrl={buildImageUrl}
           getSelectedColorData={getSelectedColorData}
+          isSubmittingOrder={isSubmittingOrder}
         />
       )}
 

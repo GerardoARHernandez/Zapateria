@@ -1,10 +1,11 @@
+// src/components/Header.jsx
 import { useAuth } from '../routes';
 
 const Header = ({ onLogout }) => {
   const { user } = useAuth();
 
   return (
-    <header className="bg-white shadow-md">
+    <header className="bg-blue-50 shadow-md">
       <div className="container mx-auto px-5 py-5">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-5">

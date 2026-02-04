@@ -12,7 +12,8 @@ const ProductModal = ({
   formatPrice,
   getColorHex,
   buildImageUrl,
-  getSelectedColorData
+  getSelectedColorData,
+  isSubmittingOrder
 }) => {
   if (!isModalOpen || !selectedProduct) return null;
 
@@ -26,6 +27,19 @@ const ProductModal = ({
   useEffect(() => {
     setImageError(false);
   }, [selectedColor]);
+
+  // Encontrar el precio para la talla seleccionada
+  const getSelectedPrice = () => {
+    if (!selectedSize || !selectedColorData || !selectedColorData.allSizes) return 0;
+    
+    const sizeItem = selectedColorData.allSizes.find(item => 
+      Math.abs(parseFloat(item.size) - parseFloat(selectedSize)) < 0.1
+    );
+    
+    return sizeItem?.precio || 0;
+  };
+
+  const selectedPrice = getSelectedPrice();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -87,6 +101,13 @@ const ProductModal = ({
                   )}
                 </div>
               </div>
+              
+              {/* Mostrar precio si hay talla seleccionada */}
+              {selectedSize && selectedPrice > 0 && (
+                <div className="text-2xl sm:text-3xl font-bold text-blue-800">
+                  {formatPrice(selectedPrice)}
+                </div>
+              )}
               
               {/* Disponibilidad */}
               <div className="flex items-center">
@@ -269,6 +290,11 @@ const ProductModal = ({
                     <div className="flex items-center gap-2">
                       <span className="text-gray-600">Talla:</span>
                       <span className="font-bold text-blue-700 text-lg">{selectedSize}</span>
+                      {selectedPrice > 0 && (
+                        <span className="text-green-700 font-bold text-lg ml-2">
+                          {formatPrice(selectedPrice)}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -279,21 +305,33 @@ const ProductModal = ({
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 onClick={onAddToCart}
-                disabled={!selectedSize}
-                className={`flex-1 py-3 sm:py-4 px-6 rounded-lg font-semibold transition-colors shadow-sm ${
-                  selectedSize
+                disabled={!selectedSize || isSubmittingOrder}
+                className={`flex-1 py-3 sm:py-4 px-6 rounded-lg font-semibold transition-colors shadow-sm flex items-center justify-center ${
+                  selectedSize && !isSubmittingOrder
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {selectedSize 
-                  ? `Solicitar Producto - ${selectedProduct.modelo}`
-                  : 'Selecciona una talla para solicitar'}
+                {isSubmittingOrder ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                    Procesando pedido...
+                  </>
+                ) : selectedSize ? (
+                  `Solicitar Producto - ${selectedProduct.modelo}`
+                ) : (
+                  'Selecciona una talla para solicitar'
+                )}
               </button>
               
               <button
                 onClick={onCloseModal}
-                className="flex-1 py-3 sm:py-4 px-6 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors text-base sm:text-lg"
+                disabled={isSubmittingOrder}
+                className={`flex-1 py-3 sm:py-4 px-6 border-2 rounded-lg font-semibold transition-colors text-base sm:text-lg ${
+                  isSubmittingOrder
+                    ? 'border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
               >
                 Seguir Explorando
               </button>
