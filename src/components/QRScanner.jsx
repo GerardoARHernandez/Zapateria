@@ -75,7 +75,7 @@ const QRScanner = ({
                     <div className="w-48 h-48 border-2 border-green-500 border-dashed rounded-lg opacity-70"></div>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white p-2 text-center text-sm">
-                    📷 Apunta el código QR al cuadro verde
+                    Apunta el código QR al cuadro verde
                 </div>
                 {!isCameraActive && !cameraError && (
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -93,7 +93,7 @@ const QRScanner = ({
             <div className="mb-4">
             <button
                 onClick={onSimulateQRDetection}
-                className="w-full py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-green-700 transition-all flex items-center justify-center shadow-md"
+                className="w-full py-3 bg-linear-to-r from-green-500 to-green-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-green-700 transition-all flex items-center justify-center shadow-md"
             >
                 <span className="mr-2">🔍</span>
                 Simular detección de QR (Demo)

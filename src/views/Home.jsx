@@ -1,15 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../routes';
-import { products } from '../data/products';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import ProductItem from '../components/ProductItem';
 import QRScanner from '../components/QRScanner';
 import ProductModal from '../components/ProductModal';
 
 const Home = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredProducts, setFilteredProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedColor, setSelectedColor] = useState('');
@@ -18,27 +15,14 @@ const Home = () => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [qrCodeInput, setQrCodeInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
   const streamRef = useRef(null);
-  const videoRef = useRef(null); // Añade el videoRef aquí en el componente principal
+  const videoRef = useRef(null);
   const { logout } = useAuth();
 
   // Detectar si es dispositivo móvil
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-  // Filtrar productos basado en búsqueda
-  useEffect(() => {
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      const filtered = products.filter(product => 
-        product.name.toLowerCase().includes(term) ||
-        product.category.toLowerCase().includes(term) ||
-        product.description.toLowerCase().includes(term)
-      );
-      setFilteredProducts(filtered);
-    } else {
-      setFilteredProducts(products);
-    }
-  }, [searchTerm]);
 
   // Verificar compatibilidad de cámara al cargar
   useEffect(() => {
@@ -85,7 +69,7 @@ const Home = () => {
     return () => window.removeEventListener('retryCamera', handleRetryCamera);
   }, [showQRScanner]);
 
-  // Iniciar cámara cuando se abre el scanner - REVISADO
+  // Iniciar cámara cuando se abre el scanner
   useEffect(() => {
     if (showQRScanner && isMobile) {
       const initCamera = async () => {
@@ -104,7 +88,6 @@ const Home = () => {
             }
           }
 
-          // Obtener stream con mejor configuración
           const constraints = {
             video: {
               facingMode: 'environment',
@@ -117,7 +100,6 @@ const Home = () => {
           const stream = await navigator.mediaDevices.getUserMedia(constraints);
           streamRef.current = stream;
           
-          // Esperar a que el video esté listo - IMPORTANTE: esto debe estar aquí
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             videoRef.current.onloadedmetadata = () => {
@@ -133,18 +115,16 @@ const Home = () => {
             };
           } else {
             console.error('videoRef.current no está disponible');
-            setIsCameraActive(true); // Fallback
+            setIsCameraActive(true);
           }
           
         } catch (error) {
           console.error('Camera error:', error);
           
-          // Manejar errores específicos
           if (error.name === 'NotAllowedError') {
             setCameraError('Permiso de cámara denegado. Por favor, habilita los permisos en configuración.');
           } else if (error.name === 'NotFoundError') {
             setCameraError('No se encontró cámara trasera. Intenta con la frontal.');
-            // Intentar con cámara frontal
             try {
               const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'user' },
@@ -170,7 +150,6 @@ const Home = () => {
 
       initCamera();
 
-      // Cleanup function
       return () => {
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => {
@@ -182,8 +161,221 @@ const Home = () => {
     }
   }, [showQRScanner, isMobile]);
 
-  const handleSearch = (e) => {
+  // Función para buscar modelo en la API
+  const handleSearch = async (e) => {
     e.preventDefault();
+    
+    if (!searchTerm.trim()) {
+      alert('Por favor ingresa un número de modelo');
+      return;
+    }
+
+    setIsLoading(true);
+    setApiError('');
+    
+    try {
+      const response = await fetch(`https://systemweb.ddns.net/planet-shoes/api/Modelos?estilo=${searchTerm.trim()}`);
+      
+      if (!response.ok) {
+        throw new Error(`Error en la consulta: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.data && result.data.length > 0) {
+        // Procesar los datos de la API
+        const processedProduct = processApiData(result.data, searchTerm.trim());
+        setSelectedProduct(processedProduct);
+        // Seleccionar el primer color disponible
+        const firstColor = processedProduct.colors[0]?.color || '';
+        setSelectedColor(firstColor);
+        setSelectedSize('');
+        setIsModalOpen(true);
+      } else {
+        setApiError('No se encontró el modelo. Verifica el número e intenta nuevamente.');
+      }
+    } catch (error) {
+      console.error('Error fetching product:', error);
+      setApiError('Error al consultar el modelo. Verifica tu conexión e intenta nuevamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Función para procesar los datos de la API - MODIFICADA
+  const processApiData = (apiData, modelo) => {
+    if (!apiData || apiData.length === 0) return null;
+    
+    // Agrupar por color únicamente
+    const colorsMap = {};
+    
+    apiData.forEach(item => {
+      const colorKey = (item.color || 'Sin color').trim().toUpperCase();
+      
+      if (!colorsMap[colorKey]) {
+        colorsMap[colorKey] = {
+          color: item.color || 'Sin color',
+          material: item.material || 'Sin material',
+          descripcion: item.descripcion || `MODELO ${modelo}`,
+          foto: item.foto || '',
+          marca: item.marca || '',
+          genero: item.genero || '',
+          sizesByRange: {}, // Agrupar tamaños por rango
+          allSizes: [] // Todas las tallas juntas
+        };
+      }
+      
+      // Convertir talla numérica a formato string (180 -> "18", 185 -> "18.5")
+      const sizeStr = (parseInt(item.talla) / 10).toFixed(1).replace('.0', '');
+      
+      // Obtener o crear el rango
+      const rango = item.rango || 'Sin rango';
+      if (!colorsMap[colorKey].sizesByRange[rango]) {
+        colorsMap[colorKey].sizesByRange[rango] = {
+          rango: rango,
+          precio: item.precio1 || 0,
+          genero: item.genero || '',
+          sizes: []
+        };
+      }
+      
+      // Agregar tamaño al rango correspondiente
+      const existingSize = colorsMap[colorKey].sizesByRange[rango].sizes.find(s => s.size === sizeStr);
+      if (!existingSize) {
+        colorsMap[colorKey].sizesByRange[rango].sizes.push({
+          size: sizeStr,
+          stock: item.existencia || 0,
+          precio: item.precio1 || 0
+        });
+        
+        // También agregar a todas las tallas
+        colorsMap[colorKey].allSizes.push({
+          size: sizeStr,
+          stock: item.existencia || 0,
+          precio: item.precio1 || 0,
+          rango: rango,
+          genero: item.genero || ''
+        });
+      } else {
+        // Sumar existencias si el tamaño ya existe
+        existingSize.stock += item.existencia || 0;
+        
+        // Actualizar en allSizes también
+        const allSize = colorsMap[colorKey].allSizes.find(s => s.size === sizeStr && s.rango === rango);
+        if (allSize) {
+          allSize.stock += item.existencia || 0;
+        }
+      }
+    });
+
+    // Procesar colores
+    const colors = Object.values(colorsMap).map(colorData => {
+      // Ordenar todas las tallas por tamaño
+      colorData.allSizes.sort((a, b) => {
+        const sizeA = parseFloat(a.size);
+        const sizeB = parseFloat(b.size);
+        return sizeA - sizeB;
+      });
+      
+      // Ordenar tamaños dentro de cada rango
+      Object.values(colorData.sizesByRange).forEach(rangeData => {
+        rangeData.sizes.sort((a, b) => {
+          const sizeA = parseFloat(a.size);
+          const sizeB = parseFloat(b.size);
+          return sizeA - sizeB;
+        });
+      });
+      
+      // Calcular stock total para este color
+      colorData.totalStock = colorData.allSizes.reduce((sum, size) => sum + size.stock, 0);
+      
+      // Obtener la primera foto disponible
+      colorData.foto = colorData.foto || '';
+      
+      return colorData;
+    });
+
+    // Obtener información general del primer item
+    const firstItem = apiData[0];
+    
+    // Crear objeto de producto procesado
+    return {
+      id: firstItem.estilo || modelo,
+      name: `MODELO ${modelo}`,
+      modelo: modelo,
+      descripcion: firstItem.descripcion || `MODELO ${modelo}`,
+      marca: firstItem.marca || 'Planet Shoes',
+      genero: firstItem.genero || '',
+      colors: colors,
+      inStock: colors.some(c => c.totalStock > 0),
+      apiData: apiData // Guardamos los datos originales
+    };
+  };
+
+  // Función para obtener el color seleccionado
+  const getSelectedColorData = () => {
+    if (!selectedProduct || !selectedColor) return null;
+    
+    // Buscar el color que coincide EXACTAMENTE
+    const colorData = selectedProduct.colors.find(c => 
+      c.color.trim().toUpperCase() === selectedColor.trim().toUpperCase()
+    );
+    
+    // Si no encuentra exacto, buscar que contenga el color
+    if (!colorData) {
+      return selectedProduct.colors.find(c => 
+        c.color.toUpperCase().includes(selectedColor.toUpperCase())
+      );
+    }
+    
+    return colorData;
+  };
+
+  // Función auxiliar para obtener hex de color
+  const getColorHex = (colorName) => {
+    const colorMap = {
+      'NEGRO': '#000000',
+      'BLANCO': '#FFFFFF',
+      'ROJO': '#FF0000',
+      'AZUL': '#0000FF',
+      'VERDE': '#00FF00',
+      'CAFÉ': '#8B4513',
+      'GRIS': '#808080',
+      'AMARILLO': '#FFFF00',
+      'NARANJA': '#FFA500',
+      'MORADO': '#800080',
+      'ROSA': '#FFC0CB',
+      'BEIGE': '#F5F5DC',
+      'MARINO': '#000080',
+      'BORGOÑA': '#800020',
+      'MERCURIO': '#E5E4E2',
+      'PLATA': '#C0C0C0',
+      'VINO': '#722F37',
+      'CAMEL': '#C19A6B',
+      'NEGRO TOTAL': '#000000',
+      'FERRERO': '#8B4513', // Café similar
+      'FEBRERO': '#8B4513'  // Café similar
+    };
+    
+    const upperColor = colorName?.toUpperCase() || '';
+    return colorMap[upperColor] || '#808080';
+  };
+
+  // Función para construir URL de imagen
+  const buildImageUrl = (fotoPath) => {
+    if (!fotoPath) return null;
+    
+    // Limpiar la ruta
+    const cleanPath = fotoPath.replace(/\\\\/g, '/').replace(/\\/g, '/');
+    
+    // Extraer nombre de archivo
+    const fileName = cleanPath.split('/').pop();
+    
+    if (fileName) {
+      return `https://systemweb.ddns.net/planet-shoes/Fotos/${fileName}`;
+    }
+    
+    return null;
   };
 
   const handleLogout = () => {
@@ -192,7 +384,8 @@ const Home = () => {
 
   const openProductModal = (product) => {
     setSelectedProduct(product);
-    setSelectedColor(product.colors[0]?.name || '');
+    const firstColor = product.colors[0]?.color || '';
+    setSelectedColor(firstColor);
     setSelectedSize('');
     setIsModalOpen(true);
   };
@@ -202,9 +395,10 @@ const Home = () => {
     setSelectedProduct(null);
     setSelectedColor('');
     setSelectedSize('');
+    setSearchTerm('');
+    setApiError('');
   };
 
-  // Iniciar cámara para escanear QR
   const startQRScan = () => {
     console.log('startQRScan called');
     console.log('isMobile:', isMobile);
@@ -216,7 +410,6 @@ const Home = () => {
     setShowQRScanner(true);
   };
 
-  // Detener cámara - REVISADO
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -228,7 +421,6 @@ const Home = () => {
     setIsCameraActive(false);
   };
 
-  // Detener escaneo QR
   const stopQRScan = () => {
     stopCamera();
     setShowQRScanner(false);
@@ -236,7 +428,6 @@ const Home = () => {
     setQrCodeInput('');
   };
 
-  // Manejar entrada manual de código QR
   const handleManualQRSubmit = (e) => {
     e.preventDefault();
     if (qrCodeInput.trim()) {
@@ -244,40 +435,30 @@ const Home = () => {
     }
   };
 
-  // Procesar resultado del QR
   const processQRResult = (qrData) => {
-    // Buscar producto por SKU
-    let foundProduct = products.find(p => 
-      p.sku.toLowerCase().includes(qrData.toLowerCase()) || 
-      p.name.toLowerCase().includes(qrData.toLowerCase())
-    );
-    
-    // Si no se encuentra por SKU, buscar por número de modelo
-    if (!foundProduct) {
-      const modelMatch = qrData.match(/\d+/);
-      if (modelMatch) {
-        const modelNumber = modelMatch[0];
-        foundProduct = products.find(p => 
-          p.name.includes(modelNumber)
-        );
-      }
-    }
-    
-    if (foundProduct) {
-      stopCamera();
-      openProductModal(foundProduct);
-      setShowQRScanner(false);
+    // Buscar por número de modelo en el QR
+    const modelMatch = qrData.match(/\d+/);
+    if (modelMatch) {
+      const modelNumber = modelMatch[0];
+      setSearchTerm(modelNumber);
+      // Simular clic en buscar
+      setTimeout(() => {
+        document.querySelector('button[type="submit"]').click();
+      }, 100);
     } else {
-      alert(`No se encontró un producto con el código: ${qrData}`);
+      alert(`No se encontró un número de modelo en el código: ${qrData}`);
     }
   };
 
-  // Simular detección de QR (para demo)
   const simulateQRDetection = () => {
-    const demoProducts = ['CASUAL-3390', 'FORMAL-5018', 'DEPORT-5021'];
-    const randomQR = demoProducts[Math.floor(Math.random() * demoProducts.length)];
-    setQrCodeInput(randomQR);
-    processQRResult(randomQR);
+    const demoModels = ['01085', '35035', '31280', '31262'];
+    const randomModel = demoModels[Math.floor(Math.random() * demoModels.length)];
+    setQrCodeInput(randomModel);
+    setSearchTerm(randomModel);
+    // Simular clic en buscar después de un breve delay
+    setTimeout(() => {
+      document.querySelector('button[type="submit"]').click();
+    }, 100);
   };
 
   const handleAddToCart = () => {
@@ -286,7 +467,7 @@ const Home = () => {
       return;
     }
     
-    alert(`¡Producto agregado!\n${selectedProduct.name}\nColor: ${selectedColor}\nTalla: ${selectedSize}`);
+    alert(`¡Producto solicitado!\n${selectedProduct.name}\nModelo: ${selectedProduct.modelo}\nColor: ${selectedColor}\nTalla: ${selectedSize}`);
   };
 
   const formatPrice = (price) => {
@@ -311,25 +492,25 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header Component */}
       <Header onLogout={handleLogout} />
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="flex-grow container mx-auto px-4 py-8">
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-gray-800 mb-4">
             Buscar Modelo
           </h2>
           <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            Encuentra el modelo perfecto - Escanea un código QR o busca manualmente
+            Ingresa el número de modelo o escanea el código QR para consultar disponibilidad
           </p>
         </div>
 
         {/* Search Section */}
         <div className="max-w-3xl mx-auto mb-12">
-          {/* QR Scanner Component - PASA videoRef como prop */}
+          {/* QR Scanner Component */}
           <QRScanner
             showQRScanner={showQRScanner}
             isMobile={isMobile}
@@ -345,108 +526,139 @@ const Home = () => {
             videoRef={videoRef} 
           />
 
-          {/* Search Bar */}
-          <form onSubmit={handleSearch} className="relative">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar modelo (ej: MOD. 3390, Casual, Formal...)"
-                className="w-full px-6 py-4 text-lg border border-gray-300 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white pr-32"
-              />
-              
-              {/* Botón de búsqueda */}
-              <button
-                type="submit"
-                className="absolute right-24 top-1/2 transform -translate-y-1/2 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors font-medium"
-              >
-                Buscar
-              </button>
-              
-              {/* Botón de escanear QR (solo móvil) */}
-              {isMobile && (
-                <button
-                  type="button"
-                  onClick={showQRScanner ? stopQRScan : startQRScan}
-                  className={`absolute right-3 top-1/2 transform -translate-y-1/2 px-4 py-2 rounded-xl font-medium flex items-center ${
-                    showQRScanner 
-                      ? 'bg-red-600 text-white hover:bg-red-700' 
-                      : 'bg-green-600 text-white hover:bg-green-700'
-                  }`}
-                >
-                  <span className="mr-2">{showQRScanner ? '✕' : '📱'}</span>
-                  {showQRScanner ? 'Cerrar' : 'Escanear QR'}
-                </button>
-              )}
-            </div>
-          </form>
-          
-          {/* Contador de resultados */}
-          <div className="mt-4 text-center">
-            <span className="text-gray-600">
-              {filteredProducts.length} {filteredProducts.length === 1 ? 'producto encontrado' : 'productos encontrados'}
-            </span>
-          </div>          
-          
-        </div>
-
-        {/* Resultados de búsqueda */}
-        <div className="mb-8">
-          {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {filteredProducts.map(product => (
-                <ProductItem 
-                  key={product.id} 
-                  product={product} 
-                  onOpenModal={openProductModal}
-                  formatPrice={formatPrice}
+          {/* Search Bar - DISEÑO MEJORADO */}
+          <form onSubmit={handleSearch} className="w-full">
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              {/* Campo de búsqueda */}
+              <div className="flex-grow relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Ingresa el número de modelo (ej: 31262, 01085, 35035...)"
+                  className="w-full px-6 py-4 text-lg border border-gray-300 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white"
                 />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16">
-              <div className="text-6xl mb-4 text-gray-300">👟</div>
-              <h4 className="text-xl font-semibold text-gray-700 mb-2">No se encontraron productos</h4>
-              <p className="text-gray-600 mb-6">Intenta con otros términos de búsqueda</p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button 
-                  onClick={() => setSearchTerm('')}
-                  className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+              </div>
+              
+              {/* Botones en fila para móvil, en línea para desktop */}
+              <div className="flex gap-3">
+                {/* Botón de búsqueda */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 bg-blue-600 text-white px-6 py-4 rounded-2xl hover:bg-blue-700 transition-colors font-medium disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center min-w-[120px]"
                 >
-                  Ver todos los productos
+                  {isLoading ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Buscando...
+                    </div>
+                  ) : (
+                    'Buscar'
+                  )}
                 </button>
+                
+                {/* Botón de escanear QR (solo móvil) */}
                 {isMobile && (
-                  <button 
-                    onClick={startQRScan}
-                    className="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors shadow-md flex items-center justify-center"
+                  <button
+                    type="button"
+                    onClick={showQRScanner ? stopQRScan : startQRScan}
+                    className={`flex-1 px-6 py-4 rounded-2xl font-medium flex items-center justify-center min-w-[120px] ${
+                      showQRScanner 
+                        ? 'bg-red-600 text-white hover:bg-red-700' 
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
                   >
-                    <span className="mr-2">📱</span>
-                    Escanear QR
+                    <span className="mr-2 text-xl">{showQRScanner ? '✕' : '📱'}</span>
+                    {showQRScanner ? 'Cerrar' : 'QR'}
                   </button>
                 )}
               </div>
             </div>
+          </form>
+          
+          {/* Mensaje de error */}
+          {apiError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-center">
+              {apiError}
+            </div>
+          )}
+          
+          {/* Instrucciones */}
+          <div className="mt-8 text-center">
+            <div className="inline-block bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <h4 className="font-semibold text-blue-800 mb-2">Modelos de ejemplo:</h4>
+              <div className="flex flex-wrap justify-center gap-2">
+                {['01085', '35035', '31280', '31262'].map((model) => (
+                  <button
+                    key={model}
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm(model);
+                      // Disparar búsqueda automáticamente
+                      setTimeout(() => {
+                        document.querySelector('button[type="submit"]').click();
+                      }, 100);
+                    }}
+                    className="px-3 py-1 bg-white border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors text-sm"
+                  >
+                    {model}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Estado de carga */}
+          {isLoading && (
+            <div className="mt-8 text-center">
+              <div className="inline-flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600">Consultando modelo...</span>
+              </div>
+            </div>
           )}
         </div>
-        
+
+        {/* Estado inicial (sin búsqueda) */}
+        {!searchTerm && !isLoading && !apiError && (
+          <div className="text-center py-12">
+            <div className="inline-block p-8 bg-white rounded-2xl shadow-lg max-w-md">
+              <div className="text-6xl mb-6 text-gray-300">👟</div>
+              <h4 className="text-xl font-semibold text-gray-700 mb-3">Busca un modelo</h4>
+              <p className="text-gray-600 mb-6">
+                Ingresa el número de modelo en el buscador o escanea el código QR para ver disponibilidad, precios y tallas.
+              </p>
+              <div className="text-sm text-gray-500">
+                <p className="mb-2">Ejemplos: 31262, 01085, 35035, 31280</p>
+                <p>O usa el botón "Escanear QR" si tienes el código</p>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* Footer Component */}
       <Footer />
 
       {/* Product Modal Component */}
-      <ProductModal
-        isModalOpen={isModalOpen}
-        selectedProduct={selectedProduct}
-        selectedColor={selectedColor}
-        selectedSize={selectedSize}
-        onCloseModal={closeModal}
-        onSelectSize={setSelectedSize}
-        onSelectColor={setSelectedColor}
-        onAddToCart={handleAddToCart}
-        formatPrice={formatPrice}
-      />
+      {selectedProduct && (
+        <ProductModal
+          isModalOpen={isModalOpen}
+          selectedProduct={selectedProduct}
+          selectedColor={selectedColor}
+          selectedSize={selectedSize}
+          onCloseModal={closeModal}
+          onSelectSize={setSelectedSize}
+          onSelectColor={setSelectedColor}
+          onAddToCart={handleAddToCart}
+          formatPrice={formatPrice}
+          getColorHex={getColorHex}
+          buildImageUrl={buildImageUrl}
+          getSelectedColorData={getSelectedColorData}
+        />
+      )}
 
       {/* Estilos CSS para el video */}
       <style jsx>{`
