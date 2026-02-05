@@ -5,10 +5,11 @@ import Footer from '../components/Footer';
 
 const Proveedor = () => {
   const [pedidos, setPedidos] = useState([]);
+  const [pedidosOriginales, setPedidosOriginales] = useState([]); // Guardar los datos originales de la API
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { logout, user } = useAuth();
-  const [filtroVendedor, setFiltroVendedor] = useState('todos');
+  const [ordenAscendente, setOrdenAscendente] = useState(true); // Estado para controlar el orden
 
   const obtenerPedidos = async () => {
     setIsLoading(true);
@@ -24,8 +25,12 @@ const Proveedor = () => {
       const result = await response.json();
       
       if (result.success && result.data) {
+        setPedidosOriginales(result.data);
+        // Por defecto, mostrar en el orden que viene de la API
         setPedidos(result.data);
+        setOrdenAscendente(true); // Restablecer el estado de orden
       } else {
+        setPedidosOriginales([]);
         setPedidos([]);
       }
     } catch (error) {
@@ -33,6 +38,20 @@ const Proveedor = () => {
       setError('Error al cargar los pedidos. Intenta nuevamente.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Función para alternar el orden
+  const toggleOrden = () => {
+    const nuevoOrden = !ordenAscendente;
+    setOrdenAscendente(nuevoOrden);
+    
+    if (nuevoOrden) {
+      // Orden ascendente (como viene de la API)
+      setPedidos([...pedidosOriginales]);
+    } else {
+      // Orden descendente (invertir el array)
+      setPedidos([...pedidosOriginales].reverse());
     }
   };
 
@@ -49,10 +68,7 @@ const Proveedor = () => {
   const buildImageUrl = (fotoPath) => {
     if (!fotoPath) return null;
     
-    // Limpiar la ruta
     const cleanPath = fotoPath.replace(/\\\\/g, '/').replace(/\\/g, '/');
-    
-    // Extraer nombre de archivo
     const fileName = cleanPath.split('/').pop();
     
     if (fileName) {
@@ -62,46 +78,16 @@ const Proveedor = () => {
     return null;
   };
 
-  // Calcular estadísticas
-  const totalPedidos = pedidos.length;
-  const porSurtirTotal = pedidos.reduce((total, pedido) => total + (pedido.porSurtir || 0), 0);
-  const surtidoTotal = pedidos.reduce((total, pedido) => total + (pedido.surtido || 0), 0);
-  const porcentajeSurtido = totalPedidos > 0 ? Math.round((surtidoTotal / (surtidoTotal + porSurtirTotal)) * 100) : 0;
-
-  // Obtener vendedores únicos para el filtro
-  const vendedoresUnicos = [...new Set(pedidos.map(p => p.vendedor?.id || 'SYS'))];
-
-  // Filtrar pedidos solo por vendedor (se eliminó el filtro por estado)
-  const pedidosFiltrados = pedidos.filter(pedido => {
-    const pasaVendedor = filtroVendedor === 'todos' || pedido.vendedor?.id === filtroVendedor;
-    
-    return pasaVendedor;
-  });
-
-  // Función para obtener el estado de un pedido
-  const getEstadoPedido = (pedido) => {
-    if (pedido.surtido > 0 && pedido.porSurtir === 0) return 'completado';
-    if (pedido.surtido > 0 && pedido.porSurtir > 0) return 'en-proceso';
-    return 'pendiente';
-  };
-
-  // Función para obtener el color del estado
-  const getColorEstado = (estado) => {
-    switch(estado) {
-      case 'completado': return 'text-emerald-600 bg-emerald-50 border-emerald-200';
-      case 'en-proceso': return 'text-amber-600 bg-amber-50 border-amber-200';
-      case 'pendiente': return 'text-blue-600 bg-blue-50 border-blue-200';
-      default: return 'text-slate-600 bg-slate-50 border-slate-200';
-    }
+  // Formatear talla
+  const formatTalla = (talla) => {
+    return (parseInt(talla) / 10).toFixed(1).replace('.0', '');
   };
 
   return (
     <div className="min-h-screen bg-linear-to-b from-blue-50 via-blue-100 to-blue-200">
       <Header onLogout={handleLogout} />
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {/* Encabezado del Panel */}
         <div className="mb-10">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
             <div>
@@ -124,7 +110,7 @@ const Proveedor = () => {
               </div>
             </div>
             
-            <div className="flex gap-3">
+            <div className="flex gap-3">  
               <button
                 onClick={obtenerPedidos}
                 disabled={isLoading}
@@ -147,7 +133,6 @@ const Proveedor = () => {
             </div>
           </div>
 
-          {/* Mensajes de error */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg">
               <div className="flex items-center gap-3">
@@ -159,48 +144,31 @@ const Proveedor = () => {
             </div>
           )}
 
-          {/* Filtros */}
-          <div className="mb-8">
-            <div className="bg-white rounded-xl p-6 shadow-md border border-slate-400/70">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900 mb-2">Filtros de Pedidos</h3>
-                  <p className="text-sm text-slate-600">Selecciona criterios para filtrar la lista</p>
-                </div>
-                
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex-1 min-w-50">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Vendedor</label>
-                    <select
-                      value={filtroVendedor}
-                      onChange={(e) => setFiltroVendedor(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                    >
-                      <option value="todos">Todos los vendedores</option>
-                      <option value="SYS">Sistema</option>
-                      {vendedoresUnicos.filter(v => v !== 'SYS').map(vendedor => (
-                        <option key={vendedor} value={vendedor}>{vendedor}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Lista de pedidos */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">Órdenes Registradas</h3>
                   <p className="text-sm text-slate-600">
-                    Mostrando {pedidosFiltrados.length} de {totalPedidos} pedidos
+                    {pedidos.length} pedidos en total • Orden: {ordenAscendente ? 'Ascendente' : 'Descendente'}
                   </p>
                 </div>
                 <div className="text-sm text-slate-500">
                   {isLoading ? 'Actualizando...' : ''}
                 </div>
+                <button
+                  onClick={toggleOrden}
+                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium flex items-center gap-2 shadow-sm hover:shadow-md"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {ordenAscendente ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                    )}
+                  </svg>
+                </button>
+
               </div>
             </div>
 
@@ -212,7 +180,7 @@ const Proveedor = () => {
                   <p className="text-slate-500 text-sm mt-2">Sincronizando con el servidor...</p>
                 </div>
               </div>
-            ) : pedidosFiltrados.length === 0 ? (
+            ) : pedidos.length === 0 ? (
               <div className="p-12 text-center">
                 <div className="inline-flex flex-col items-center">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -222,23 +190,19 @@ const Proveedor = () => {
                   </div>
                   <span className="text-slate-700 font-medium text-lg mb-2">No se encontraron pedidos</span>
                   <p className="text-slate-500 max-w-md">
-                    {filtroVendedor !== 'todos' 
-                      ? 'Intenta cambiar los filtros para encontrar más resultados.'
-                      : 'No hay pedidos registrados en este momento.'}
+                    No hay pedidos registrados en este momento.
                   </p>
                 </div>
               </div>
             ) : (
               <div className="divide-y divide-gray-200">
-                {pedidosFiltrados.map((pedido, index) => {
+                {pedidos.map((pedido, index) => {
                   const imageUrl = buildImageUrl(pedido.foto);
-                  const tallaFormateada = (parseInt(pedido.talla) / 10).toFixed(1).replace('.0', '');
-                  const estado = getEstadoPedido(pedido);
+                  const tallaFormateada = formatTalla(pedido.talla);
                   
                   return (
                     <div key={`${pedido.articulo}-${index}`} className="p-6 hover:bg-blue-100/70 transition-colors">
                       <div className="flex flex-col lg:flex-row gap-6">
-                        {/* Imagen y artículo */}
                         <div className="lg:w-48">
                           <div className="flex items-start gap-4">
                             <div className="shrink-0 w-20 h-20 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
@@ -269,7 +233,6 @@ const Proveedor = () => {
                           </div>
                         </div>
 
-                        {/* Información del producto */}
                         <div className="lg:flex-1 bg-blue-100/60 rounded-lg p-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div>
@@ -324,7 +287,6 @@ const Proveedor = () => {
                           </div>
                         </div>
 
-                        {/* Vendedor y acciones */}
                         <div className="lg:w-48">
                           <div className="space-y-4">
                             <div>
@@ -336,7 +298,6 @@ const Proveedor = () => {
                                 </div>
                               </div>
                             </div>
-                            
                           </div>
                         </div>
                       </div>

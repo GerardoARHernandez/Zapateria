@@ -21,7 +21,7 @@ const Home = () => {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const streamRef = useRef(null);
   const videoRef = useRef(null);
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   // Detectar si es dispositivo móvil
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -551,7 +551,7 @@ const Home = () => {
         articulo: foundItem.id.trim(), // ID del artículo
         cantidad: 1, // Siempre 1
         precio: foundItem.precio1 || 0, // precio1 del modelo
-        usuario: "SYS" // Siempre SYS por ahora
+        usuario: user?.username || "SYS" 
       };
 
       console.log('Enviando pedido:', pedidoData);
@@ -612,7 +612,7 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-linear-to-b from-blue-50 via-blue-100 to-blue-50 flex flex-col">
       {/* Header Component */}
       <Header onLogout={handleLogout} />
 

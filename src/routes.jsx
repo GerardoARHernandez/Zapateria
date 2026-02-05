@@ -12,41 +12,64 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
-  const [userRole, setUserRole] = useState(null); // Nuevo estado para el rol
+  const [userRole, setUserRole] = useState(null);
+  const [userName, setUserName] = useState(null); // Para el nombre del vendedor
 
-  const login = (email, role = 'user') => {
-    // Simulamos inicio de sesión sin API
+  const login = (username, role = 'user', displayName = null) => {
     setIsAuthenticated(true);
-    setUser({ email });
+    setUser({ 
+      email: displayName || username, // Usamos displayName si está disponible
+      username // También guardamos el ID de usuario
+    });
     setUserRole(role);
+    setUserName(displayName || username);
+    
     localStorage.setItem('isAuthenticated', 'true');
-    localStorage.setItem('userEmail', email);
+    localStorage.setItem('userName', username);
     localStorage.setItem('userRole', role);
+    if (displayName) {
+      localStorage.setItem('displayName', displayName);
+    }
   };
 
   const logout = () => {
     setIsAuthenticated(false);
     setUser(null);
     setUserRole(null);
+    setUserName(null);
     localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userName');
     localStorage.removeItem('userRole');
+    localStorage.removeItem('displayName');
   };
 
   // Verificar si hay sesión guardada
   useEffect(() => {
     const auth = localStorage.getItem('isAuthenticated');
-    const email = localStorage.getItem('userEmail');
+    const username = localStorage.getItem('userName');
     const role = localStorage.getItem('userRole');
-    if (auth === 'true' && email) {
+    const displayName = localStorage.getItem('displayName');
+    
+    if (auth === 'true' && username) {
       setIsAuthenticated(true);
-      setUser({ email });
+      setUser({ 
+        email: displayName || username,
+        username 
+      });
       setUserRole(role || 'user');
+      setUserName(displayName || username);
     }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, userRole, login, logout }}>
+    <AuthContext.Provider value={{ 
+      isAuthenticated, 
+      user, 
+      userRole, 
+      userName, 
+      login, 
+      logout 
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -60,7 +83,6 @@ const ProtectedRoute = ({ children, allowedRoles = ['user'] }) => {
     return <Navigate to="/login" />;
   }
   
-  // Verificar si el usuario tiene el rol permitido
   if (!allowedRoles.includes(userRole)) {
     return <Navigate to="/" />;
   }

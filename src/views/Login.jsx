@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../routes';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState(''); // Cambiado de email a username
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -16,25 +16,19 @@ const Login = () => {
     setIsLoading(true);
 
     // Validación básica
-    if (!email || !password) {
+    if (!username || !password) {
       setError('Por favor, completa todos los campos');
       setIsLoading(false);
       return;
     }
 
-    if (!email.includes('@')) {
-      setError('Ingresa un correo electrónico válido');
-      setIsLoading(false);
-      return;
-    }
-
-    // Credenciales especiales para proveedor
-    if (email === 'provedor@c.com' && password) {
-      // Cualquier contraseña funciona para este correo
+    // Validación especial para proveedor
+    if (username.toLowerCase() === 'provedor@c.com' && password) {
+      // Cualquier contraseña funciona para este usuario
       try {
-        await new Promise(resolve => setTimeout(resolve, 800)); // Simula proceso de login
-        login(email, 'proveedor'); // Login con rol 'proveedor'
-        navigate('/proveedor'); // Redirige a la ruta de proveedor
+        await new Promise(resolve => setTimeout(resolve, 800));
+        login(username, 'proveedor');
+        navigate('/proveedor');
       } catch (err) {
         setError('Error al iniciar sesión. Intenta nuevamente.');
         setIsLoading(false);
@@ -42,26 +36,55 @@ const Login = () => {
       return;
     }
 
-    // Para otros usuarios (validación normal)
+    // Para vendedores, validamos contraseña de 6+ caracteres
     if (password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres');
       setIsLoading(false);
       return;
     }
 
-    // Simulamos inicio de sesión exitoso con un pequeño delay
+    // Validar vendedor contra la API
     try {
-      await new Promise(resolve => setTimeout(resolve, 800)); // Simula proceso de login
-      login(email, 'user'); // Login con rol 'user' por defecto
+      setIsLoading(true);
+      
+      // Hacer petición a la API de vendedores
+      const response = await fetch('https://systemweb.ddns.net/planet-shoes/api/Vendedores');
+      
+      if (!response.ok) {
+        throw new Error('Error al conectar con el servidor');
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Error en la respuesta del servidor');
+      }
+
+      // Buscar el vendedor por ID
+      const vendedor = result.data.find(v => v.id === username.toUpperCase());
+      
+      if (!vendedor) {
+        setError('Usuario no encontrado. Verifica tu ID de vendedor.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Simulamos proceso de login exitoso
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Login exitoso - guardamos el nombre del vendedor
+      login(username, 'user', vendedor.nombre); // Pasamos el nombre del vendedor
       navigate('/');
+      
     } catch (err) {
-      setError('Error al iniciar sesión. Intenta nuevamente.');
+      console.error('Error en login:', err);
+      setError(err.message || 'Error al iniciar sesión. Intenta nuevamente.');
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-indigo-50 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-blue-100 to-indigo-50 flex flex-col items-center justify-center p-4">
       {/* Logo y título */}
       <div className="text-center mb-8">
         <div className="flex flex-col items-center gap-4">
@@ -108,24 +131,23 @@ const Login = () => {
               </div>
             )}
 
-            {/* Campo Email */}
+            {/* Campo Usuario (ID de vendedor) */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
-                Correo electrónico
+                ID de Vendedor
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none hover:border-gray-400"
-                  placeholder="tucorreo@ejemplo.com"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none hover:border-gray-400 uppercase"
+                  placeholder="Ej: SYS, V01, V02..."
                   disabled={isLoading}
                 />
               </div>
@@ -159,7 +181,8 @@ const Login = () => {
             <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
               <p className="font-medium mb-1">Credenciales de prueba:</p>
               <p>• Proveedor: provedor@c.com (cualquier contraseña)</p>
-              <p>• Usuario normal: cualquier correo con contraseña de 6+ caracteres</p>
+              <p>• Vendedor: SYS, V01, V02, etc. (contraseña de 6+ caracteres)</p>
+              <p className="mt-2 text-xs">Ejemplos de IDs válidos: SYS, V11, V03, V05, V04, V08, V10, V01, V02, V06, V07</p>
             </div>
 
             {/* Botón de submit */}
