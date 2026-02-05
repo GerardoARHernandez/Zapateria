@@ -5,9 +5,11 @@ const ProductModal = ({
   selectedProduct, 
   selectedColor, 
   selectedSize, 
+  selectedMarca,
   onCloseModal, 
   onSelectSize, 
   onSelectColor, 
+  onSelectMarca,
   onAddToCart,
   formatPrice,
   getColorHex,
@@ -27,6 +29,18 @@ const ProductModal = ({
   useEffect(() => {
     setImageError(false);
   }, [selectedColor]);
+
+  // Manejar cambios en la marca
+  useEffect(() => {
+    // Si hay una marca seleccionada pero no hay color seleccionado,
+    // seleccionar el primer color de esa marca
+    if (selectedMarca && !selectedColor && selectedProduct?.marcas) {
+      const marcaSeleccionada = selectedProduct.marcas.find(m => m.marca === selectedMarca);
+      if (marcaSeleccionada?.colors?.length > 0) {
+        onSelectColor(marcaSeleccionada.colors[0]?.color || '');
+      }
+    }
+  }, [selectedMarca, selectedProduct, selectedColor, onSelectColor]);
 
   // Encontrar el precio para la talla seleccionada
   const getSelectedPrice = () => {
@@ -91,9 +105,11 @@ const ProductModal = ({
                   {selectedColorData?.descripcion || selectedProduct.descripcion}
                 </h3>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                    {selectedProduct.marca}
-                  </span>
+                  {selectedColorData?.marca && (
+                    <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                      {selectedColorData.marca}
+                    </span>
+                  )}
                   {selectedColorData?.material && (
                     <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
                       {selectedColorData.material}
@@ -122,55 +138,91 @@ const ProductModal = ({
             </div>
           </div>
           
-          {/* Sección de Colores */}
-          {selectedProduct.colors && selectedProduct.colors.length > 0 && (
+          {selectedProduct.marcas && selectedProduct.marcas.length > 0 && (
             <div className="mb-8">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Colores Disponibles</h3>
-                {selectedColor && (
-                  <span className="text-sm text-blue-600 font-medium">
-                    Seleccionado: <span className="font-bold">{selectedColor}</span>
-                  </span>
-                )}
-              </div>
+              {/* Selector de Marca (si hay más de una) */}
+              {selectedProduct.marcas.length > 1 && (
+                <div className="mb-6">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Marcas Disponibles</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedProduct.marcas.map((marcaData, idx) => (
+                      <button
+                        key={`${marcaData.marca}-${idx}`}
+                        onClick={() => {
+                          onSelectMarca(marcaData.marca);
+                          // Seleccionar el primer color de esta marca
+                          const firstColorOfMarca = marcaData.colors[0]?.color || '';
+                          onSelectColor(firstColorOfMarca);
+                          onSelectSize('');
+                        }}
+                        className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                          selectedMarca === marcaData.marca
+                            ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold'
+                            : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                        }`}
+                      >
+                        {marcaData.marca} ({marcaData.totalStock})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {selectedProduct.colors.map((colorData, idx) => (
-                  <button
-                    key={`${colorData.color}-${idx}`}
-                    onClick={() => {
-                      onSelectColor(colorData.color);
-                      onSelectSize('');
-                    }}
-                    className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-all ${
-                      selectedColor === colorData.color
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                    }`}
-                  >
-                    {/* Color indicator */}
-                    <div 
-                      className="w-12 h-12 rounded-full border border-gray-300 shadow-sm shrink-0"
-                      style={{ backgroundColor: getColorHex(colorData.color) }}
-                      title={colorData.color}
-                    />
-                    
-                    {/* Color details */}
-                    <div className="text-left flex-1 min-w-0">
-                      <div className="font-medium text-gray-800 truncate">{colorData.color}</div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        {colorData.material}
+              {/* Colores de la marca seleccionada */}
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-800">
+                    Colores Disponibles {selectedMarca && `- ${selectedMarca}`}
+                  </h3>
+                  {selectedColor && (
+                    <span className="text-sm text-blue-600 font-medium">
+                      Seleccionado: <span className="font-bold">{selectedColor}</span>
+                    </span>
+                  )}
+                </div>
+                
+                {/* Mostrar colores de la marca seleccionada o de todas las marcas */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {(selectedMarca 
+                    ? selectedProduct.marcas.find(m => m.marca === selectedMarca)?.colors || []
+                    : selectedProduct.marcas.flatMap(m => m.colors)
+                  ).map((colorData, idx) => (
+                    <button
+                      key={`${colorData.color}-${idx}`}
+                      onClick={() => {
+                        onSelectColor(colorData.color);
+                        onSelectSize('');
+                      }}
+                      className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-all ${
+                        selectedColor === colorData.color
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                      }`}
+                    >
+                      {/* Color indicator */}
+                      <div 
+                        className="w-12 h-12 rounded-full border border-gray-300 shadow-sm shrink-0"
+                        style={{ backgroundColor: getColorHex(colorData.color) }}
+                        title={colorData.color}
+                      />
+                      
+                      {/* Color details */}
+                      <div className="text-left flex-1 min-w-0">
+                        <div className="font-medium text-gray-800 truncate">{colorData.color}</div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {colorData.material}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {colorData.totalStock} unidades disponibles
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        {colorData.totalStock} unidades disponibles
-                      </div>
-                    </div>
-                    
-                    {selectedColor === colorData.color && (
-                      <div className="text-blue-600 text-lg">✓</div>
-                    )}
-                  </button>
-                ))}
+                      
+                      {selectedColor === colorData.color && (
+                        <div className="text-blue-600 text-lg">✓</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

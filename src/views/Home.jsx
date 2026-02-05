@@ -11,6 +11,7 @@ const Home = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
+  const [selectedMarca, setSelectedMarca] = useState('');
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -187,8 +188,11 @@ const Home = () => {
         // Procesar los datos de la API
         const processedProduct = processApiData(result.data, searchTerm.trim());
         setSelectedProduct(processedProduct);
-        // Seleccionar el primer color disponible
-        const firstColor = processedProduct.colors[0]?.color || '';
+        // Seleccionar la primera marca disponible
+        const firstMarca = processedProduct.marcas[0]?.marca || '';
+        setSelectedMarca(firstMarca);
+        // Seleccionar el primer color de la primera marca
+        const firstColor = processedProduct.marcas[0]?.colors[0]?.color || '';
         setSelectedColor(firstColor);
         setSelectedSize('');
         setIsModalOpen(true);
@@ -203,23 +207,31 @@ const Home = () => {
     }
   };
 
-  // Función para procesar los datos de la API - MODIFICADA
+  // Función para procesar los datos de la API 
   const processApiData = (apiData, modelo) => {
     if (!apiData || apiData.length === 0) return null;
     
-    // Agrupar por color únicamente
-    const colorsMap = {};
+    // Primero agrupar por marca
+    const marcasMap = {};
     
     apiData.forEach(item => {
+      const marcaKey = (item.marca || 'Sin marca').trim().toUpperCase();
       const colorKey = (item.color || 'Sin color').trim().toUpperCase();
       
-      if (!colorsMap[colorKey]) {
-        colorsMap[colorKey] = {
+      if (!marcasMap[marcaKey]) {
+        marcasMap[marcaKey] = {
+          marca: item.marca || 'Sin marca',
+          colorsMap: {} // Ahora agrupamos colores dentro de cada marca
+        };
+      }
+      
+      // Agrupar por color dentro de la marca
+      if (!marcasMap[marcaKey].colorsMap[colorKey]) {
+        marcasMap[marcaKey].colorsMap[colorKey] = {
           color: item.color || 'Sin color',
           material: item.material || 'Sin material',
           descripcion: item.descripcion || `MODELO ${modelo}`,
           foto: item.foto || '',
-          marca: item.marca || '',
           genero: item.genero || '',
           sizesByRange: {}, // Agrupar tamaños por rango
           allSizes: [] // Todas las tallas juntas
@@ -231,8 +243,8 @@ const Home = () => {
       
       // Obtener o crear el rango
       const rango = item.rango || 'Sin rango';
-      if (!colorsMap[colorKey].sizesByRange[rango]) {
-        colorsMap[colorKey].sizesByRange[rango] = {
+      if (!marcasMap[marcaKey].colorsMap[colorKey].sizesByRange[rango]) {
+        marcasMap[marcaKey].colorsMap[colorKey].sizesByRange[rango] = {
           rango: rango,
           precio: item.precio1 || 0,
           genero: item.genero || '',
@@ -241,16 +253,16 @@ const Home = () => {
       }
       
       // Agregar tamaño al rango correspondiente
-      const existingSize = colorsMap[colorKey].sizesByRange[rango].sizes.find(s => s.size === sizeStr);
+      const existingSize = marcasMap[marcaKey].colorsMap[colorKey].sizesByRange[rango].sizes.find(s => s.size === sizeStr);
       if (!existingSize) {
-        colorsMap[colorKey].sizesByRange[rango].sizes.push({
+        marcasMap[marcaKey].colorsMap[colorKey].sizesByRange[rango].sizes.push({
           size: sizeStr,
           stock: item.existencia || 0,
           precio: item.precio1 || 0
         });
         
         // También agregar a todas las tallas
-        colorsMap[colorKey].allSizes.push({
+        marcasMap[marcaKey].colorsMap[colorKey].allSizes.push({
           size: sizeStr,
           stock: item.existencia || 0,
           precio: item.precio1 || 0,
@@ -262,39 +274,54 @@ const Home = () => {
         existingSize.stock += item.existencia || 0;
         
         // Actualizar en allSizes también
-        const allSize = colorsMap[colorKey].allSizes.find(s => s.size === sizeStr && s.rango === rango);
+        const allSize = marcasMap[marcaKey].colorsMap[colorKey].allSizes.find(s => s.size === sizeStr && s.rango === rango);
         if (allSize) {
           allSize.stock += item.existencia || 0;
         }
       }
     });
 
-    // Procesar colores
-    const colors = Object.values(colorsMap).map(colorData => {
-      // Ordenar todas las tallas por tamaño
-      colorData.allSizes.sort((a, b) => {
-        const sizeA = parseFloat(a.size);
-        const sizeB = parseFloat(b.size);
-        return sizeA - sizeB;
-      });
-      
-      // Ordenar tamaños dentro de cada rango
-      Object.values(colorData.sizesByRange).forEach(rangeData => {
-        rangeData.sizes.sort((a, b) => {
+    // Procesar marcas
+    const marcas = Object.values(marcasMap).map(marcaData => {
+      // Procesar colores dentro de cada marca
+      const colors = Object.values(marcaData.colorsMap).map(colorData => {
+        // Ordenar todas las tallas por tamaño
+        colorData.allSizes.sort((a, b) => {
           const sizeA = parseFloat(a.size);
           const sizeB = parseFloat(b.size);
           return sizeA - sizeB;
         });
+        
+        // Ordenar tamaños dentro de cada rango
+        Object.values(colorData.sizesByRange).forEach(rangeData => {
+          rangeData.sizes.sort((a, b) => {
+            const sizeA = parseFloat(a.size);
+            const sizeB = parseFloat(b.size);
+            return sizeA - sizeB;
+          });
+        });
+        
+        // Calcular stock total para este color
+        colorData.totalStock = colorData.allSizes.reduce((sum, size) => sum + size.stock, 0);
+        
+        // Obtener la primera foto disponible
+        colorData.foto = colorData.foto || '';
+        
+        return colorData;
       });
+
+      // Ordenar colores por nombre
+      colors.sort((a, b) => a.color.localeCompare(b.color));
       
-      // Calcular stock total para este color
-      colorData.totalStock = colorData.allSizes.reduce((sum, size) => sum + size.stock, 0);
+      // Calcular stock total para la marca
+      marcaData.totalStock = colors.reduce((sum, color) => sum + color.totalStock, 0);
+      marcaData.colors = colors;
       
-      // Obtener la primera foto disponible
-      colorData.foto = colorData.foto || '';
-      
-      return colorData;
+      return marcaData;
     });
+
+    // Ordenar marcas por nombre
+    marcas.sort((a, b) => a.marca.localeCompare(b.marca));
 
     // Obtener información general del primer item
     const firstItem = apiData[0];
@@ -305,31 +332,53 @@ const Home = () => {
       name: `MODELO ${modelo}`,
       modelo: modelo,
       descripcion: firstItem.descripcion || `MODELO ${modelo}`,
-      marca: firstItem.marca || 'Planet Shoes',
-      genero: firstItem.genero || '',
-      colors: colors,
-      inStock: colors.some(c => c.totalStock > 0),
+      marcas: marcas,
+      totalStock: marcas.reduce((sum, marca) => sum + marca.totalStock, 0),
+      inStock: marcas.some(m => m.totalStock > 0),
       apiData: apiData // Guardamos los datos originales
     };
   };
 
-  // Función para obtener el color seleccionado
+  // Función para obtener el color seleccionado 
   const getSelectedColorData = () => {
     if (!selectedProduct || !selectedColor) return null;
     
-    // Buscar el color que coincide EXACTAMENTE
-    const colorData = selectedProduct.colors.find(c => 
-      c.color.trim().toUpperCase() === selectedColor.trim().toUpperCase()
-    );
+    // Primero necesitamos saber qué marca está seleccionada
+    // (en tu código actual no hay estado para marca seleccionada)
+    // Asumiremos que mostramos todas las marcas juntas o seleccionamos la primera
     
-    // Si no encuentra exacto, buscar que contenga el color
-    if (!colorData) {
-      return selectedProduct.colors.find(c => 
-        c.color.toUpperCase().includes(selectedColor.toUpperCase())
-      );
+    if (selectedProduct.marcas && selectedProduct.marcas.length > 0) {
+      // Buscar en todas las marcas
+      for (const marca of selectedProduct.marcas) {
+        // Buscar el color que coincide EXACTAMENTE
+        const colorData = marca.colors.find(c => 
+          c.color.trim().toUpperCase() === selectedColor.trim().toUpperCase()
+        );
+        
+        if (colorData) {
+          return {
+            ...colorData,
+            marca: marca.marca // Incluir la marca en los datos
+          };
+        }
+        
+        // Si no encuentra exacto, buscar que contenga el color
+        if (!colorData) {
+          const partialColorData = marca.colors.find(c => 
+            c.color.toUpperCase().includes(selectedColor.toUpperCase())
+          );
+          
+          if (partialColorData) {
+            return {
+              ...partialColorData,
+              marca: marca.marca
+            };
+          }
+        }
+      }
     }
     
-    return colorData;
+    return null;
   };
 
   // Función auxiliar para obtener hex de color
@@ -395,6 +444,7 @@ const Home = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
     setSelectedColor('');
+    setSelectedMarca(''); 
     setSelectedSize('');
     setSearchTerm('');
     setApiError('');
@@ -725,11 +775,13 @@ const Home = () => {
         <ProductModal
           isModalOpen={isModalOpen}
           selectedProduct={selectedProduct}
+          selectedMarca={selectedMarca}
           selectedColor={selectedColor}
           selectedSize={selectedSize}
           onCloseModal={closeModal}
           onSelectSize={setSelectedSize}
           onSelectColor={setSelectedColor}
+          onSelectMarca={setSelectedMarca}
           onAddToCart={handleAddToCart}
           formatPrice={formatPrice}
           getColorHex={getColorHex}
