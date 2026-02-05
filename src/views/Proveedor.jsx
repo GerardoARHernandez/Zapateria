@@ -1,18 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../routes';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 const Proveedor = () => {
   const [pedidos, setPedidos] = useState([]);
-  const [pedidosOriginales, setPedidosOriginales] = useState([]); // Guardar los datos originales de la API
+  const [pedidosOriginales, setPedidosOriginales] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { logout, user } = useAuth();
-  const [ordenAscendente, setOrdenAscendente] = useState(true); // Estado para controlar el orden
+  const [ordenAscendente, setOrdenAscendente] = useState(true);
+  const [ultimoConteo, setUltimoConteo] = useState(0);
+  const audioRef = useRef(null);
 
-  const obtenerPedidos = async () => {
-    setIsLoading(true);
+  const obtenerPedidos = async (esAutomatico = false) => {
+    if (!esAutomatico) {
+      setIsLoading(true);
+    }
     setError('');
     
     try {
@@ -25,20 +29,66 @@ const Proveedor = () => {
       const result = await response.json();
       
       if (result.success && result.data) {
-        setPedidosOriginales(result.data);
-        // Por defecto, mostrar en el orden que viene de la API
-        setPedidos(result.data);
-        setOrdenAscendente(true); // Restablecer el estado de orden
+        const nuevosDatos = result.data;
+        
+        // Detectar nuevos pedidos (solo cuando hay un aumento en el conteo)
+        if (nuevosDatos.length > ultimoConteo && ultimoConteo > 0) {
+          const cantidadNuevos = nuevosDatos.length - ultimoConteo;
+          
+          // Reproducir sonido solo cuando hay nuevos pedidos
+          reproducirSonido();
+          
+          // Mostrar mensaje en consola para depuración
+          console.log(`¡Nuevos pedidos detectados! Hay ${cantidadNuevos} nuevo(s) pedido(s) desde la última actualización.`);
+        }
+        
+        setUltimoConteo(nuevosDatos.length);
+        setPedidosOriginales(nuevosDatos);
+        
+        // Aplicar el orden actual a los nuevos datos
+        if (ordenAscendente) {
+          setPedidos([...nuevosDatos]);
+        } else {
+          setPedidos([...nuevosDatos].reverse());
+        }
+        
       } else {
         setPedidosOriginales([]);
         setPedidos([]);
+        setUltimoConteo(0);
       }
     } catch (error) {
       console.error('Error al obtener pedidos:', error);
-      setError('Error al cargar los pedidos. Intenta nuevamente.');
+      if (!esAutomatico) {
+        setError('Error al cargar los pedidos. Intenta nuevamente.');
+      }
     } finally {
-      setIsLoading(false);
+      if (!esAutomatico) {
+        setIsLoading(false);
+      }
     }
+  };
+
+  // Función para reproducir sonido
+  const reproducirSonido = () => {
+    if (audioRef.current) {
+      // Reiniciar el audio si ya está reproduciéndose
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(e => {
+        console.log('Error reproduciendo audio:', e);
+        
+        // Intentar con un sonido de respaldo si el archivo local falla
+        const audioRespaldo = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3');
+        audioRespaldo.volume = 0.5;
+        audioRespaldo.play().catch(err => console.log('Error con audio de respaldo:', err));
+      });
+    }
+  };
+
+  // Función para probar el sonido
+  const probarSonido = () => {
+    reproducirSonido();
+    console.log('Sonido de prueba reproducido');
   };
 
   // Función para alternar el orden
@@ -47,10 +97,8 @@ const Proveedor = () => {
     setOrdenAscendente(nuevoOrden);
     
     if (nuevoOrden) {
-      // Orden ascendente (como viene de la API)
       setPedidos([...pedidosOriginales]);
     } else {
-      // Orden descendente (invertir el array)
       setPedidos([...pedidosOriginales].reverse());
     }
   };
@@ -62,6 +110,13 @@ const Proveedor = () => {
   // Cargar pedidos al montar el componente
   useEffect(() => {
     obtenerPedidos();
+    
+    // Configurar actualización automática cada minuto (60000 ms)
+    const intervalo = setInterval(() => {
+      obtenerPedidos(true);
+    }, 60000);
+    
+    return () => clearInterval(intervalo);
   }, []);
 
   // Función para construir URL de imagen
@@ -85,6 +140,13 @@ const Proveedor = () => {
 
   return (
     <div className="min-h-screen bg-linear-to-b from-blue-50 via-blue-100 to-blue-200">
+      {/* Audio para la notificación */}
+      <audio ref={audioRef} preload="auto">
+        <source src="/notification.mp3" type="audio/mpeg" />
+        <source src="/notification.wav" type="audio/wav" />
+        <source src="/notification.ogg" type="audio/ogg" />
+      </audio>
+      
       <Header onLogout={handleLogout} />
 
       <main className="container mx-auto px-4 py-8">
@@ -107,12 +169,28 @@ const Proveedor = () => {
                     day: 'numeric' 
                   })}
                 </div>
+                <div className="h-4 w-px bg-gray-300"></div>
+                <div className="text-sm text-slate-500">
+                  Actualización automática: cada minuto
+                </div>
               </div>
             </div>
             
-            <div className="flex gap-3">  
+            <div className="flex flex-wrap gap-3">
+              {/* Botón para probar sonido */}
               <button
-                onClick={obtenerPedidos}
+                onClick={probarSonido}
+                className="px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all font-medium flex items-center gap-2 shadow-sm hover:shadow-md"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <span>Probar Sonido</span>
+              </button>
+              
+              {/* Botón para actualizar datos */}
+              <button
+                onClick={() => obtenerPedidos(false)}
                 disabled={isLoading}
                 className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm hover:shadow-md"
               >
@@ -153,22 +231,23 @@ const Proveedor = () => {
                     {pedidos.length} pedidos en total • Orden: {ordenAscendente ? 'Ascendente' : 'Descendente'}
                   </p>
                 </div>
-                <div className="text-sm text-slate-500">
-                  {isLoading ? 'Actualizando...' : ''}
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-slate-500">
+                    {isLoading ? 'Actualizando...' : `Última actualización: ${new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`}
+                  </div>
+                  <button
+                    onClick={toggleOrden}
+                    className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium flex items-center gap-2 shadow-sm hover:shadow-md"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {ordenAscendente ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                      )}
+                    </svg>
+                  </button>
                 </div>
-                <button
-                  onClick={toggleOrden}
-                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium flex items-center gap-2 shadow-sm hover:shadow-md"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    {ordenAscendente ? (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-                    ) : (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                    )}
-                  </svg>
-                </button>
-
               </div>
             </div>
 
