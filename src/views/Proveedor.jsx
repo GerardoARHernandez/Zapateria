@@ -142,9 +142,7 @@ const Proveedor = () => {
     <div className="min-h-screen bg-linear-to-b from-blue-50 via-blue-100 to-blue-200">
       {/* Audio para la notificación */}
       <audio ref={audioRef} preload="auto">
-        <source src="/notification.mp3" type="audio/mpeg" />
-        <source src="/notification.wav" type="audio/wav" />
-        <source src="/notification.ogg" type="audio/ogg" />
+        <source src="/noti2.mp3" type="audio/mpeg" />
       </audio>
       
       <Header onLogout={handleLogout} />
