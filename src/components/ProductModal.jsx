@@ -20,7 +20,23 @@ const ProductModal = ({
   if (!isModalOpen || !selectedProduct) return null;
 
   const selectedColorData = getSelectedColorData();
-  const imageUrl = selectedColorData?.foto ? buildImageUrl(selectedColorData.foto) : null;
+  
+  // Función para codificar correctamente la URL
+  const getEncodedImageUrl = () => {
+    if (!selectedColorData?.foto) return null;
+    
+    try {
+      // Decodificar primero por si ya viene parcialmente codificada
+      const decodedUrl = decodeURIComponent(selectedColorData.foto);
+      // Luego codificar correctamente los espacios y caracteres especiales
+      return encodeURI(decodedUrl);
+    } catch (error) {
+      // Si hay error en la decodificación, intentar codificar directamente
+      return encodeURI(selectedColorData.foto);
+    }
+  };
+
+const imageUrl = getEncodedImageUrl();
   
   // Estado para manejar errores de imagen
   const [imageError, setImageError] = useState(false);
@@ -54,6 +70,8 @@ const ProductModal = ({
   };
 
   const selectedPrice = getSelectedPrice();
+
+  console.log(imageUrl, 'URL de la imagen del producto');
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

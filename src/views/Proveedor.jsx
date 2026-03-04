@@ -7,6 +7,7 @@ const Proveedor = () => {
   const [pedidos, setPedidos] = useState([]);
   const [pedidosOriginales, setPedidosOriginales] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSurtiendo, setIsSurtiendo] = useState({}); // Estado para controlar carga por pedido
   const [error, setError] = useState('');
   const { logout, user } = useAuth();
   const [ordenAscendente, setOrdenAscendente] = useState(true);
@@ -66,6 +67,46 @@ const Proveedor = () => {
       if (!esAutomatico) {
         setIsLoading(false);
       }
+    }
+  };
+
+  // Función para marcar un pedido como surtido
+  const marcarComoSurtido = async (pedidoId) => {
+    // Establecer estado de carga para este pedido específico
+    setIsSurtiendo(prev => ({ ...prev, [pedidoId]: true }));
+    setError('');
+    
+    try {
+      const response = await fetch(`https://systemweb.ddns.net/planet-shoes/api/Pedidos/${pedidoId}/surtir`, {
+        method: 'POST', // Asumiendo que es POST, ajusta si es necesario
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error al marcar como surtido: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log(`Pedido ${pedidoId} marcado como surtido correctamente.`);
+        
+        // Actualizar la lista de pedidos después de marcar como surtido
+        await obtenerPedidos(false);
+        
+        // Opcional: mostrar un mensaje de éxito temporal
+        // setSuccessMessage(`Pedido ${pedidoId} marcado como surtido`);
+      } else {
+        throw new Error(result.message || 'Error al marcar como surtido');
+      }
+    } catch (error) {
+      console.error('Error al marcar pedido como surtido:', error);
+      setError(`Error al marcar pedido ${pedidoId} como surtido. Intenta nuevamente.`);
+    } finally {
+      // Limpiar estado de carga para este pedido
+      setIsSurtiendo(prev => ({ ...prev, [pedidoId]: false }));
     }
   };
 
@@ -278,9 +319,10 @@ const Proveedor = () => {
                 {pedidos.map((pedido, index) => {
                   const imageUrl = buildImageUrl(pedido.foto);
                   const tallaFormateada = formatTalla(pedido.talla);
+                  const estaCargando = isSurtiendo[pedido.id];
                   
                   return (
-                    <div key={`${pedido.articulo}-${index}`} className="p-6 hover:bg-blue-100/70 transition-colors">
+                    <div key={`${pedido.id}-${index}`} className="p-6 hover:bg-blue-100/70 transition-colors">
                       <div className="flex flex-col lg:flex-row gap-6">
                         <div className="lg:w-48">
                           <div className="flex items-start gap-4">
@@ -308,6 +350,10 @@ const Proveedor = () => {
                                   </svg>
                                 </div>
                               )}
+                            </div>
+                            {/* Mostrar ID del pedido */}
+                            <div className="text-xs text-slate-500">
+                              ID: <span className="font-mono font-medium text-slate-700">{pedido.id}</span>
                             </div>
                           </div>
                         </div>
@@ -366,18 +412,41 @@ const Proveedor = () => {
                           </div>
                         </div>
 
-                        <div className="lg:w-48">
-                          <div className="space-y-4">
-                            <div>
-                              <h4 className="text-sm font-medium text-slate-700 mb-2">Vendedor</h4>
-                              <div className="flex items-center gap-3">                                
-                                <div>
-                                  <div className="text-sm text-slate-900 font-medium">{pedido.vendedor?.nombre || 'N/A'}</div>
-                                  <div className="text-xs text-slate-500">ID: {pedido.vendedor?.id || 'N/A'}</div>
-                                </div>
+                        <div className="lg:w-48 flex flex-col gap-4">
+                          <div>
+                            <h4 className="text-sm font-medium text-slate-700 mb-2">Vendedor</h4>
+                            <div className="flex items-center gap-3">                                
+                              <div>
+                                <div className="text-sm text-slate-900 font-medium">{pedido.vendedor?.nombre || 'N/A'}</div>
+                                <div className="text-xs text-slate-500">ID: {pedido.vendedor?.id || 'N/A'}</div>
                               </div>
                             </div>
                           </div>
+                          
+                          {/* Botón de Surtido */}
+                          <button
+                            onClick={() => marcarComoSurtido(pedido.id)}
+                            disabled={estaCargando || pedido.porSurtir !== 0}
+                            className={`mt-2 px-4 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md ${
+                              pedido.porSurtir !== 0
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-green-600 text-white hover:bg-green-700'
+                            }`}
+                          >
+                            {estaCargando ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                <span>Procesando...</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span>{pedido.porSurtir !== 0 ? 'Completado' : 'Marcar como Surtido'}</span>
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
                     </div>
