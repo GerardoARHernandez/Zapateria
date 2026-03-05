@@ -176,7 +176,7 @@ const Home = () => {
     setApiError('');
     
     try {
-      const response = await fetch(`https://systemweb.ddns.net/planet-shoes/api/Modelos?estilo=${searchTerm.trim()}`);
+      const response = await fetch(`https://systemweb.ddns.net/planet-shoes/api/Modelos/estilo/${searchTerm.trim()}`);
       
       if (!response.ok) {
         throw new Error(`Error en la consulta: ${response.status}`);
@@ -337,6 +337,51 @@ const Home = () => {
       inStock: marcas.some(m => m.totalStock > 0),
       apiData: apiData // Guardamos los datos originales
     };
+  };
+
+  // Función para buscar un modelo sugerido
+  const handleSearchSugerido = async (estilo) => {
+    // Cerrar el modal actual
+    setIsModalOpen(false);
+    
+    // Establecer el término de búsqueda
+    setSearchTerm(estilo);
+    
+    // Realizar la búsqueda automáticamente
+    setIsLoading(true);
+    setApiError('');
+    
+    try {
+      const response = await fetch(`https://systemweb.ddns.net/planet-shoes/api/Modelos/estilo/${estilo}`);
+      
+      if (!response.ok) {
+        throw new Error(`Error en la consulta: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.data && result.data.length > 0) {
+        // Procesar los datos de la API
+        const processedProduct = processApiData(result.data, estilo);
+        setSelectedProduct(processedProduct);
+        // Seleccionar la primera marca disponible
+        const firstMarca = processedProduct.marcas[0]?.marca || '';
+        setSelectedMarca(firstMarca);
+        // Seleccionar el primer color de la primera marca
+        const firstColor = processedProduct.marcas[0]?.colors[0]?.color || '';
+        setSelectedColor(firstColor);
+        setSelectedSize('');
+        // Abrir el modal con el nuevo producto
+        setIsModalOpen(true);
+      } else {
+        setApiError('No se encontró el modelo sugerido.');
+      }
+    } catch (error) {
+      console.error('Error fetching suggested product:', error);
+      setApiError('Error al consultar el modelo sugerido.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Función para obtener el color seleccionado 
@@ -717,7 +762,7 @@ const Home = () => {
             <div className="inline-block bg-blue-50 border border-blue-200 rounded-xl p-4">
               <h4 className="font-semibold text-blue-800 mb-2">Modelos de ejemplo:</h4>
               <div className="flex flex-wrap justify-center gap-2">
-                {['01085', '35035', '31280', '31262'].map((model) => (
+                {['01085', '35035', '31280', '31262', '04012'].map((model) => (
                   <button
                     key={model}
                     type="button"
@@ -788,6 +833,8 @@ const Home = () => {
           buildImageUrl={buildImageUrl}
           getSelectedColorData={getSelectedColorData}
           isSubmittingOrder={isSubmittingOrder}
+          searchTerm={searchTerm}
+          onSearchSugerido={handleSearchSugerido}
         />
       )}
 

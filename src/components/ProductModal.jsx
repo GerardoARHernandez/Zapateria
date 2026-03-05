@@ -15,8 +15,67 @@ const ProductModal = ({
   getColorHex,
   buildImageUrl,
   getSelectedColorData,
-  isSubmittingOrder
+  isSubmittingOrder,
+  searchTerm,
+  onSearchSugerido
 }) => {
+  // Todos los hooks deben ir antes de cualquier return condicional
+  const [modelosSugeridos, setModelosSugeridos] = useState([]);
+  const [isLoadingSugeridos, setIsLoadingSugeridos] = useState(false);
+  const [errorSugeridos, setErrorSugeridos] = useState('');
+  const [imageError, setImageError] = useState(false);
+
+  // Resetear error de imagen cuando cambia el color
+  useEffect(() => {
+    setImageError(false);
+  }, [selectedColor]);
+
+  // Cargar modelos sugeridos cuando cambia el searchTerm
+  useEffect(() => {
+    const cargarModelosSugeridos = async () => {
+      if (!searchTerm) return;
+      
+      setIsLoadingSugeridos(true);
+      setErrorSugeridos('');
+      
+      try {
+        const response = await fetch(`https://systemweb.ddns.net/planet-shoes/api/Modelos/estilo/${searchTerm}/sugeridos`);
+        
+        if (!response.ok) {
+          throw new Error(`Error al cargar sugeridos: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          setModelosSugeridos(result.data);
+        } else {
+          setModelosSugeridos([]);
+        }
+      } catch (error) {
+        console.error('Error al cargar modelos sugeridos:', error);
+        setErrorSugeridos('No se pudieron cargar los modelos sugeridos');
+      } finally {
+        setIsLoadingSugeridos(false);
+      }
+    };
+
+    cargarModelosSugeridos();
+  }, [searchTerm]);
+
+  // Manejar cambios en la marca
+  useEffect(() => {
+    // Si hay una marca seleccionada pero no hay color seleccionado,
+    // seleccionar el primer color de esa marca
+    if (selectedMarca && !selectedColor && selectedProduct?.marcas) {
+      const marcaSeleccionada = selectedProduct.marcas.find(m => m.marca === selectedMarca);
+      if (marcaSeleccionada?.colors?.length > 0) {
+        onSelectColor(marcaSeleccionada.colors[0]?.color || '');
+      }
+    }
+  }, [selectedMarca, selectedProduct, selectedColor, onSelectColor]);
+
+  // Ahora sí podemos hacer el return condicional
   if (!isModalOpen || !selectedProduct) return null;
 
   const selectedColorData = getSelectedColorData();
@@ -36,27 +95,7 @@ const ProductModal = ({
     }
   };
 
-const imageUrl = getEncodedImageUrl();
-  
-  // Estado para manejar errores de imagen
-  const [imageError, setImageError] = useState(false);
-
-  // Resetear error de imagen cuando cambia el color
-  useEffect(() => {
-    setImageError(false);
-  }, [selectedColor]);
-
-  // Manejar cambios en la marca
-  useEffect(() => {
-    // Si hay una marca seleccionada pero no hay color seleccionado,
-    // seleccionar el primer color de esa marca
-    if (selectedMarca && !selectedColor && selectedProduct?.marcas) {
-      const marcaSeleccionada = selectedProduct.marcas.find(m => m.marca === selectedMarca);
-      if (marcaSeleccionada?.colors?.length > 0) {
-        onSelectColor(marcaSeleccionada.colors[0]?.color || '');
-      }
-    }
-  }, [selectedMarca, selectedProduct, selectedColor, onSelectColor]);
+  const imageUrl = getEncodedImageUrl();
 
   // Encontrar el precio para la talla seleccionada
   const getSelectedPrice = () => {
@@ -71,13 +110,51 @@ const imageUrl = getEncodedImageUrl();
 
   const selectedPrice = getSelectedPrice();
 
-  console.log(imageUrl, 'URL de la imagen del producto');
+  // Función para construir URL de imagen de modelo sugerido
+  const buildSugeridoImageUrl = (fotoPath) => {
+    if (!fotoPath) return null;
+    
+    try {
+      // Limpiar la ruta
+      const cleanPath = fotoPath.replace(/\\\\/g, '/').replace(/\\/g, '/');
+      const fileName = cleanPath.split('/').pop();
+      
+      if (fileName) {
+        return `https://systemweb.ddns.net/planet-shoes/Fotos/${fileName}`;
+      }
+    } catch (error) {
+      console.error('Error construyendo URL de imagen sugerida:', error);
+    }
+    
+    return null;
+  };
+
+  // Función para manejar clic en modelo sugerido
+  const handleSugeridoClick = (estiloSugerido) => {
+    if (onSearchSugerido) {
+      onSearchSugerido(estiloSugerido);
+    }
+  };
+
+  // Agrupar modelos sugeridos por estiloSugerido
+  const agruparPorEstilo = (modelos) => {
+    const grupos = {};
+    modelos.forEach(modelo => {
+      if (!grupos[modelo.estiloSugerido]) {
+        grupos[modelo.estiloSugerido] = [];
+      }
+      grupos[modelo.estiloSugerido].push(modelo);
+    });
+    return grupos;
+  };
+
+  const gruposPorEstilo = agruparPorEstilo(modelosSugeridos);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
         {/* Encabezado del Modal */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex justify-between items-center">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex justify-between items-center z-10">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-800 truncate">{selectedProduct.name}</h2>
             <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full self-start sm:self-auto">
@@ -313,7 +390,7 @@ const imageUrl = getEncodedImageUrl();
                               selectedSize === sizeItem.size
                                 ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold'
                                 : sizeItem.stock > 0
-                                ? 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                                ? 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
                                 : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
                             }`}
                             disabled={sizeItem.stock === 0}
@@ -339,8 +416,64 @@ const imageUrl = getEncodedImageUrl();
             </div>
           )}
           
+          {/* SECCIÓN DE MODELOS SUGERIDOS */}
+          {searchTerm && (
+            <div className="mb-4 border-t border-gray-200 pt-2">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-800">
+                  Modelos Sugeridos
+                </h3>
+                {modelosSugeridos.length > 0 && (
+                  <span className="text-sm text-gray-600">
+                    {modelosSugeridos.length} modelos encontrados
+                  </span>
+                )}
+              </div>
+              
+              {isLoadingSugeridos ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-200 border-t-blue-600"></div>
+                  <span className="ml-3 text-gray-600">Cargando sugerencias...</span>
+                </div>
+              ) : errorSugeridos ? (
+                <div className="bg-red-50 p-4 rounded-lg text-red-700 text-sm">
+                  {errorSugeridos}
+                </div>
+              ) : modelosSugeridos.length === 0 ? (
+                <div className="bg-gray-50 p-8 rounded-lg text-center">
+                  <p className="text-gray-500">No hay modelos sugeridos disponibles</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Scroll horizontal para los grupos de estilos sugeridos */}
+                  <div className="overflow-x-auto pb-4 -mx-2 px-2">
+                    <div className="flex gap-2 min-w-max">
+                      {Object.entries(gruposPorEstilo).map(([estilo, modelos]) => (
+                        <div key={estilo} className="w-45 bg-gray-200 rounded-lg py-2 px-1 border border-gray-300">
+                          <h4 className="font-semibold text-blue-700 mb-3 text-lg">
+                            <button
+                              onClick={() => handleSugeridoClick(estilo)}
+                              className="hover:text-blue-900 hover:underline flex items-center gap-2"
+                              title={`Haz clic para buscar el estilo ${estilo}`}
+                            >
+                              Estilo: {estilo}
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                            </button>
+                          </h4>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                                    
+                </div>
+              )}
+            </div>
+          )}
+          
           {/* Resumen y botones de acción */}
-          <div className="border-t border-gray-200 pt-6">
+          <div className="border-t border-gray-200 pt-3">
             {/* Resumen de selección */}
             {(selectedSize || selectedColor) && (
               <div className="mb-6 p-4 bg-gray-50 rounded-lg">
