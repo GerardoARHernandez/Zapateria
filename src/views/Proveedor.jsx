@@ -78,7 +78,7 @@ const Proveedor = () => {
     
     try {
       const response = await fetch(`https://systemweb.ddns.net/planet-shoes/api/Pedidos/${pedidoId}/surtir`, {
-        method: 'POST', // Asumiendo que es POST, ajusta si es necesario
+        method: 'PATCH', 
         headers: {
           'Content-Type': 'application/json',
         },
