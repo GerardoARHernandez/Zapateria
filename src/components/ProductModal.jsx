@@ -179,12 +179,12 @@ const ProductModal = ({
                   <img 
                     src={imageUrl} 
                     alt={selectedProduct.name} 
-                    className="w-full h-64 sm:h-72 object-cover"
+                    className="w-full h-auto object-cover"
                     onError={() => setImageError(true)}
                     onLoad={() => setImageError(false)}
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center w-full h-64 sm:h-72 bg-gray-100">
+                  <div className="flex flex-col items-center justify-center w-full h-auto bg-gray-100">
                     <div className="text-6xl text-gray-400 mb-2">👟</div>
                     <div className="text-gray-500 text-sm">Imagen no disponible</div>
                   </div>
